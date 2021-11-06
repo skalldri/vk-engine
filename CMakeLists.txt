@@ -4,8 +4,17 @@ project(vk-engine CXX)
 
 add_executable(engine)
 
+add_subdirectory(ext)
+
 target_sources(
     engine
     PRIVATE
-        main.cpp
+        src/main.cpp
+)
+
+target_link_libraries(
+    engine
+    PRIVATE
+        fmt::fmt
+        CLI11::CLI11
 )
