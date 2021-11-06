@@ -1,0 +1,6 @@
+[submodule "ext/fmt"]
+	path = ext/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "ext/cli11"]
+	path = ext/cli11
+	url = https://github.com/CLIUtils/CLI11.git
