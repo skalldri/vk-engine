@@ -31,4 +31,7 @@ target_link_libraries(
         vulkan
 )
 
-
+# Works correctly for both single and multi-config generators
+target_compile_definitions(engine PRIVATE
+  $<$<CONFIG:Debug>:DEBUG_BUILD>
+)
