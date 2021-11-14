@@ -48,14 +48,19 @@ VkQueue graphicsQueue;
 VkQueue presentQueue;
 VkSurfaceKHR surface;
 VkSwapchainKHR swapChain;
-std::vector<VkImage> swapChainImages;
+
 VkFormat swapChainImageFormat;
 VkExtent2D swapChainExtent;
 VkRenderPass renderPass;
 VkPipelineLayout pipelineLayout;
 VkPipeline graphicsPipeline;
-std::vector<VkFramebuffer> swapChainFramebuffers;
+VkCommandPool commandPool;
+VkSemaphore imageAvailableSemaphore;
+VkSemaphore renderFinishedSemaphore;
 
+std::vector<VkImage> swapChainImages;
+std::vector<VkCommandBuffer> commandBuffers;
+std::vector<VkFramebuffer> swapChainFramebuffers;
 std::vector<VkImageView> swapChainImageViews;
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -787,6 +792,28 @@ void createRenderPass() {
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
 
+    VkSubpassDependency dependency{};
+
+    // VK_SUBPASS_EXTERNAL refers to the implicit subpass that occurrs before our current renderPass.
+    // Effectively, this refers to the previous frame
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+
+    // dstSubpass == our current renderPass (which is the only subpass we will have for this frame)
+    dependency.dstSubpass = 0;
+
+    // The "source" of our dependency is, effectively, the color attachment of the previous frame.
+    // we can't write to the color attachment until the previous frame has been scanned out
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+
+    // Destination of our dependency is the color attachment for the current frame. And we are not allowed
+    // to write to the color attachment until it's complete. We are allowed to read it, for example.
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
+
     if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
     }
@@ -944,8 +971,9 @@ void createGraphicsPipeline() {
 }
 
 void createFramebuffers() {
+    fmt::print("Creating {} framebuffers\n", swapChainImageViews.size());
     swapChainFramebuffers.resize(swapChainImageViews.size());
-
+    
     for (size_t i = 0; i < swapChainImageViews.size(); i++) {
         VkImageView attachments[] = {
             swapChainImageViews[i]
@@ -966,6 +994,148 @@ void createFramebuffers() {
     }
 }
 
+// Command pools are memory regions from which we allocate a command buffer
+// A command pool can only be associated with a single command queue family
+void createCommandPool()
+{
+    QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+    poolInfo.flags = 0; // Optional. 
+                        // VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, Hint that command buffers are rerecorded with new commands very often (may change memory allocation behavior)
+                        // VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT: Allow command buffers to be rerecorded individually, without this flag they all have to be reset together
+
+    if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create command pool!");
+    }
+}
+
+void createCommandBuffers() {
+    // Create a command buffer for each framebuffer in the swapchain
+    commandBuffers.resize(swapChainFramebuffers.size());
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = commandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution, but cannot be called from other command buffers.
+                                                       // VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be called from primary command buffers.
+
+    allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
+
+    if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate command buffers!");
+    }
+
+    // Start command buffer recording
+    for (size_t i = 0; i < commandBuffers.size(); i++) {
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = 0; // VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer will be rerecorded right after executing it once.
+                             // VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT: This is a secondary command buffer that will be entirely within a single render pass.
+                             // VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT: The command buffer can be resubmitted while it is also already pending execution.
+        beginInfo.pInheritanceInfo = nullptr; // Optional, only used for "secondary" command buffers
+
+        if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error("failed to begin recording command buffer!");
+        }
+
+        VkRenderPassBeginInfo renderPassInfo {};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass;
+        renderPassInfo.framebuffer = swapChainFramebuffers[i];
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = swapChainExtent;
+
+        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+        renderPassInfo.clearValueCount = 1;
+        renderPassInfo.pClearValues = &clearColor;
+        
+        // Record this command to the command buffer
+        vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        // Indicate this command should be bound to a graphics pipeline (instead of a compute pipeline)
+        vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+        vkCmdDraw(
+            commandBuffers[i], 
+            3, // Num Vertices to draw
+            1, // Instance count
+            0, // First vertex index offset
+            0  // First instance offset
+        );
+
+        vkCmdEndRenderPass(commandBuffers[i]);
+
+        if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to record command buffer!");
+        }
+    }
+}
+
+void createSemaphores() {
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
+        vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS) {
+
+        throw std::runtime_error("failed to create semaphores!");
+    }
+}
+
+void drawFrame()
+{
+    uint32_t imageIndex;
+
+    // Signal the imageAvailableSemaphore when imageIndex image is ready to be written to
+    // Note: imageAvailableSemaphore may only exist in GPU-space
+    vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    // The GFX engine needs to wait until the imageAvailableSemaphore is signaled
+    VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
+
+    // Wait at the COLOR_ATTACHMENT_OUTPUT stage (ie: the pixel shader). Other stages (ie: the vertex shader)
+    // are allowed to run before the semaphore is signaled
+    // Note: indexes in this array correspond to semaphore indexes in the  waitSemaphores array
+    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
+    submitInfo.waitSemaphoreCount = 1; // ARRAY_SIZE(waitSemaphores) ?
+    submitInfo.pWaitSemaphores = waitSemaphores; 
+    submitInfo.pWaitDstStageMask = waitStages;
+
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+
+    // Signal the renderFinishedSemaphore when rendering is complete for this frame
+    VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = signalSemaphores;
+    
+    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+        throw std::runtime_error("failed to submit draw command buffer!");
+    }
+
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = signalSemaphores;
+
+    VkSwapchainKHR swapChains[] = {swapChain};
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = swapChains;
+    presentInfo.pImageIndices = &imageIndex;
+
+    presentInfo.pResults = nullptr; // Optional
+
+    vkQueuePresentKHR(presentQueue, &presentInfo);
+}
+
 void initVulkan()
 {
     createInstance();
@@ -979,17 +1149,25 @@ void initVulkan()
     createGraphicsPipeline();
     createFramebuffers();
     createCommandPool();
+    createCommandBuffers();
+    createSemaphores();
 }
 
 void mainLoop()
 {
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        drawFrame();
     }
 }
 
 void cleanup()
 {
+    vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
+    vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
+
+    vkDestroyCommandPool(device, commandPool, nullptr);
+
     for (auto framebuffer : swapChainFramebuffers) {
         vkDestroyFramebuffer(device, framebuffer, nullptr);
     }
