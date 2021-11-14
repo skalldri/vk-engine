@@ -49,4 +49,5 @@ target_compile_definitions(engine PRIVATE
   $<$<CONFIG:Debug>:DEBUG_BUILD>
 )
 
-target_compile_options(engine PRIVATE /EHsc)
+target_compile_options(engine PUBLIC /EHsc /Zi)
+target_link_options(engine PUBLIC /DEBUG:FULL)
