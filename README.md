@@ -18,5 +18,5 @@ It is primarily developed on Windows, and the build system is currently only tes
 - Configure using a suggested Visual Studio 2019 amd64 toolchain
 - Build using VS Code
 
-Future versions will include build instructions for the Android NDK.
+Future versions will include build instructions for the Android NDK. 
 
