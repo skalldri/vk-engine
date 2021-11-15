@@ -11,7 +11,7 @@
 #include <CLI/Formatter.hpp>
 #include <CLI/Config.hpp>
 
-#include <vulkan/to_string.hpp>
+#include <vulkan/utils/to_string.hpp>
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_INCLUDE_VULKAN
