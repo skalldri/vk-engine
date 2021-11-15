@@ -17,7 +17,7 @@ target_sources(
     engine
     PRIVATE
         src/main.cpp
-        src/vulkan/utils/to_string.cpp
+        src/engine/utils/to_string.cpp
 )
 
 target_include_directories(
