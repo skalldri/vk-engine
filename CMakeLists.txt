@@ -11,10 +11,6 @@ find_program(glslc_executable NAMES glslc HINTS Vulkan::glslc)
 add_subdirectory(ext)
 add_subdirectory(src)
 
-add_library(vulkan STATIC IMPORTED)
-set_target_properties(vulkan PROPERTIES IMPORTED_LOCATION C:/VulkanSDK/1.2.189.2/Lib/vulkan-1.lib IMPORTED_IMPLIB C:/VulkanSDK/1.2.189.2/Lib/vulkan-1.lib)
-target_include_directories(vulkan INTERFACE C:/VulkanSDK/1.2.189.2/Include)
-
 add_executable(engine)
 
 target_sources(
