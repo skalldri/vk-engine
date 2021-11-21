@@ -1,4 +1,5 @@
 add_subdirectory(fmt)
+add_subdirectory(fmtlog)
 add_subdirectory(cli11)
 add_subdirectory(glm)
 add_subdirectory(glfw)

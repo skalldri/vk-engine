@@ -11,6 +11,8 @@
 #include <string>
 #include <engine/utils/to_string.hpp>
 
+#include <fmtlog/Log.hpp>
+
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -1412,6 +1414,8 @@ int main(int argc, char **argv) {
   cout << "Hello world" << endl;
 
   fmt::print("Hello world from {}\n", "fmtlib");
+
+  LOG_I("Arg 1 {:x}", 8);
 
   CLI::App app{"Vulkan Engine"};
 

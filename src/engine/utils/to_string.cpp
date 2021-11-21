@@ -1,5 +1,5 @@
 
-#include <engine/utils/to_string.hpp>
+#include <to_string.hpp>
 
 std::string vkPresentModeKHRToString(VkPresentModeKHR presentMode) {
   switch (presentMode) {

@@ -8,7 +8,7 @@
             "name": "Engine",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceRoot}/build/engine.exe",
+            "program": "${workspaceRoot}/build/src/app/engine.exe",
             "args": [],
             "stopAtEntry": true,
             "cwd": "${workspaceRoot}/build",
