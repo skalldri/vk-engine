@@ -22,3 +22,12 @@ target_link_libraries(
         Vulkan::Vulkan
         fmtlog
 )
+
+target_compile_features(core PUBLIC cxx_std_17)
+
+target_compile_definitions(core PRIVATE
+  $<$<CONFIG:Debug>:DEBUG_BUILD>
+)
+
+target_compile_options(core PUBLIC /EHsc /Zi)
+target_link_options(core PUBLIC /DEBUG:FULL)
