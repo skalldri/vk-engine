@@ -4,7 +4,8 @@ add_library(core STATIC)
 target_sources(
     core
     PRIVATE
-        ShaderModule.cpp)
+        ShaderModule.cpp
+        Instance.cpp)
 
 target_include_directories(
     core
@@ -19,4 +20,5 @@ target_link_libraries(
         utils
         fmt::fmt
         Vulkan::Vulkan
+        fmtlog
 )

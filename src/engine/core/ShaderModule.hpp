@@ -14,13 +14,13 @@ class ShaderModule {
   ShaderModule(const std::filesystem::path& shaderFile);
   ShaderModule(const ShaderBinary& shaderContents);
 
-  static VkShaderModule ShaderModule::createVkShaderModule(const VkDevice& device, const ShaderBinary& shaderBinary);
+  static VkShaderModule ShaderModule::createVkShaderModule(const VkDevice& device, const ShaderBinary& shaderBinary) noexcept;
 
  private:
   ShaderBinary readBinaryFile(const std::filesystem::path& shaderFile);
 
-  
 
  private:
   ShaderBinary shaderBinary_;
+  VkShaderModule shaderModule_;
 };

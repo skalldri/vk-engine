@@ -11,6 +11,8 @@ const char* logLevelToString(LogLevel l) {
       return "WARNING";
     case LogLevel::ERROR:
       return "ERROR";
+    case LogLevel::FATAL:
+      return "FATAL";
   }
 
   return "UNKNOWN";
@@ -41,9 +43,9 @@ void vlog(const LogLevel level, const char* file, int line, fmt::string_view for
           fmt::format_args args) {
 
   if (shouldPrintLineNumber(file, level)) {
-    fmt::print("{} @ {}: ", getModuleName(file), line);
+    fmt::print("[{}] {} @ {}: ", logLevelToString(level), getModuleName(file), line);
   } else {
-    fmt::print("{}: ", getModuleName(file));
+    fmt::print("[{}] {}: ", logLevelToString(level), getModuleName(file));
   }
   
   fmt::vprint(format, args);

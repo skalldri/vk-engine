@@ -4,6 +4,8 @@
 #include <ShaderModule.hpp>
 #include <fstream>
 
+#include <fmtlog/Log.hpp>
+
 using namespace std;
 using namespace std::filesystem;
 
@@ -20,7 +22,7 @@ ShaderBinary ShaderModule::readBinaryFile(const path& shaderFile) {
   path absoluteShaderFile = absolute(shaderFile);
 
   if (!exists(absoluteShaderFile) || !is_regular_file(absoluteShaderFile)) {
-    fmt::print("Error: Shader File '{}' does not exist\n",
+    LOG_E("Shader file '{}' does not exist",
                absoluteShaderFile.generic_string());
     return ShaderBinary();
   }
@@ -28,8 +30,8 @@ ShaderBinary ShaderModule::readBinaryFile(const path& shaderFile) {
   std::ifstream file(absoluteShaderFile, std::ios::ate | std::ios::binary);
 
   if (!file.is_open()) {
-    throw std::runtime_error(fmt::format("failed to open file {}",
-                                         absoluteShaderFile.generic_string()));
+    LOG_E("Failed to open shader file '{}'", absoluteShaderFile.generic_string());
+    return ShaderBinary();
   }
 
   size_t fileSize = file.tellg();
@@ -39,22 +41,24 @@ ShaderBinary ShaderModule::readBinaryFile(const path& shaderFile) {
   file.read(contents.data(), fileSize);
   file.close();
 
+  LOG_D("Read contents of shader file '{}', size = {}", absoluteShaderFile.generic_string(), fileSize);
+
   return contents;
 }
 
 VkShaderModule ShaderModule::createVkShaderModule(
     const VkDevice& device,
-    const ShaderBinary& shaderBinary) {
+    const ShaderBinary& shaderBinary) noexcept {
   VkShaderModuleCreateInfo createInfo{};
   createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   createInfo.codeSize = shaderBinary.size();
   createInfo.pCode = reinterpret_cast<const uint32_t*>(shaderBinary.data());
   
-  // TODO: return NULL on error instead of throwing an exception?
   VkShaderModule shaderModule;
   if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) !=
       VK_SUCCESS) {
-    throw std::runtime_error("failed to create shader module!");
+    LOG_E("failed to create shader module!");
+    return VK_NULL_HANDLE;
   }
 
   return shaderModule;

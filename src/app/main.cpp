@@ -4,14 +4,14 @@
 #include <CLI/Config.hpp>
 #include <CLI/Formatter.hpp>
 #include <array>
+#include <engine/core/Instance.hpp>
+#include <engine/utils/to_string.hpp>
 #include <exception>
+#include <fmtlog/Log.hpp>
 #include <fstream>
 #include <iostream>
 #include <optional>
 #include <string>
-#include <engine/utils/to_string.hpp>
-
-#include <fmtlog/Log.hpp>
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_INCLUDE_VULKAN
@@ -23,14 +23,16 @@
 using namespace std;
 
 GLFWwindow *window;
+
+Instance *instanceCpp;
+
 VkInstance instance;
 VkDebugUtilsMessengerEXT debugMessenger;
 
 constexpr size_t window_width = 800;
 constexpr size_t window_height = 600;
 
-const std::vector<const char *> validationLayers = {
-    "VK_LAYER_KHRONOS_validation"};
+const Layers validationLayers = {"VK_LAYER_KHRONOS_validation"};
 
 const std::vector<const char *> deviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -118,16 +120,16 @@ bool checkValidationLayerSupport() {
     bool layerPresent = false;
 
     for (auto availableLayer : availableLayers) {
-      if (strcmp(requestedLayer, availableLayer.layerName) == 0) {
+      if (strcmp(requestedLayer.c_str(), availableLayer.layerName) == 0) {
         layerPresent = true;
         break;
       }
     }
 
     if (layerPresent) {
-      fmt::print("Layer {} is availabe\n", requestedLayer);
+      LOG_I("Layer {} is availabe\n", requestedLayer);
     } else {
-      fmt::print("Layer {} is not available\n", requestedLayer);
+      LOG_W("Layer {} is not available\n", requestedLayer);
       allLayersFound = false;
     }
   }
@@ -247,6 +249,7 @@ std::vector<const char *> getRequiredInstanceExtensions() {
 }
 
 void createInstance() {
+  /*
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   appInfo.pApplicationName = "Hello Triangle";
@@ -292,11 +295,32 @@ void createInstance() {
   if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
     throw std::runtime_error("Failed to create Vulkan instance");
   }
+  */
+
+  uint32_t glfwExtensionCount = 0;
+  const char **glfwExtensions;
+
+  // Query GLFW to figure out what extensions it needs from Vulkan
+  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+  Extensions requiredExtensions(glfwExtensions,
+                                glfwExtensions + glfwExtensionCount);
+
+  for (auto extension : requiredExtensions) {
+    LOG_D("GLFW Requires Extension: {}", extension);
+  }
+
+  instanceCpp = new Instance("Hello Triangle", {1, 0, 0},  // App Version
+                             enableValidationLayers, 
+                             requiredExtensions,
+                             {}  // required layers
+  );
+  instance = instanceCpp->getInstance();
 }
 
 std::vector<VkPhysicalDevice> listPhysicalDevices() {
   uint32_t deviceCount = 0;
-  vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+  vkEnumeratePhysicalDevices(instanceCpp->getInstance(), &deviceCount, nullptr);
 
   if (deviceCount == 0) {
     throw std::runtime_error("failed to find GPUs with Vulkan support!");
@@ -602,22 +626,27 @@ void createLogicalDevice() {
       static_cast<uint32_t>(deviceExtensions.size());
   createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
+  std::vector<const char *> vkValidationLayers(validationLayers.size());
+
+  for (size_t i = 0; i < validationLayers.size(); i++) {
+    vkValidationLayers[i] = validationLayers[i].c_str();
+  }
+
   if (enableValidationLayers) {
     createInfo.enabledLayerCount =
-        static_cast<uint32_t>(validationLayers.size());
-    createInfo.ppEnabledLayerNames = validationLayers.data();
+        static_cast<uint32_t>(vkValidationLayers.size());
+    createInfo.ppEnabledLayerNames = vkValidationLayers.data();
   } else {
     createInfo.enabledLayerCount = 0;
   }
 
   if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) !=
       VK_SUCCESS) {
-    throw std::runtime_error("failed to create logical device!");
+    LOG_F("failed to create logical device!");
   }
 
   if (!indices.isComplete()) {
-    throw std::runtime_error(
-        "cannot create logical device without a graphics queue");
+    LOG_F("cannot create logical device without a graphics queue");
   }
 
   vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
@@ -1404,19 +1433,15 @@ void cleanup() {
   }
 
   vkDestroySurfaceKHR(instance, surface, nullptr);
-  vkDestroyInstance(instance, nullptr);
+
+  // vkDestroyInstance(instance, nullptr);
+  delete instanceCpp;
 
   glfwDestroyWindow(window);
   glfwTerminate();
 }
 
 int main(int argc, char **argv) {
-  cout << "Hello world" << endl;
-
-  fmt::print("Hello world from {}\n", "fmtlib");
-
-  LOG_I("Arg 1 {:x}", 8);
-
   CLI::App app{"Vulkan Engine"};
 
   std::string filename = "default";
