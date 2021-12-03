@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Instance.hpp"
 
 #include <vulkan/vulkan.h>
@@ -7,6 +9,47 @@
 
 const Extensions debugExtensions = {VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 const Layers debugLayers = {"VK_LAYER_KHRONOS_validation"};
+
+VkResult createDebugUtilsMessengerEXT(
+    VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+    const VkAllocationCallbacks* pAllocator,
+    VkDebugUtilsMessengerEXT* pDebugMessenger) {
+  auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+      instance, "vkCreateDebugUtilsMessengerEXT");
+  if (func != nullptr) {
+    return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
+  } else {
+    return VK_ERROR_EXTENSION_NOT_PRESENT;
+  }
+}
+
+VkResult destroyDebugUtilsMessengerEXT(
+    VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
+    const VkAllocationCallbacks* pAllocator) {
+  auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+      instance, "vkDestroyDebugUtilsMessengerEXT");
+  if (func != nullptr) {
+    func(instance, debugMessenger, pAllocator);
+    return VK_SUCCESS;
+  } else {
+    return VK_ERROR_EXTENSION_NOT_PRESENT;
+  }
+}
+
+void Instance::populateDebugMessengerCreateInfo(
+    VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
+  createInfo = {};
+  createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+  createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+                               VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+                               VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                               VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+  createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                           VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                           VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+  createInfo.pfnUserCallback = debugCallbackShim;
+  createInfo.pUserData = this;
+}
 
 Instance::Instance(const std::string& applicationName,
                    const Version& applicationVersion, bool enableDebugMessages,
@@ -19,7 +62,8 @@ Instance::Instance(const std::string& applicationName,
                                                std::get<2>(applicationVersion));
 
   appInfo.pEngineName = "VK_ENGINE";
-  appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0); // TODO: use project version from CMake
+  appInfo.engineVersion =
+      VK_MAKE_VERSION(1, 0, 0);  // TODO: use project version from CMake
 
   appInfo.apiVersion = VK_API_VERSION_1_0;
 
@@ -37,38 +81,27 @@ Instance::Instance(const std::string& applicationName,
   VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
   if (enableDebugMessages) {
     // Check if the Debug messages extension is supported by our Vulkan instance
-    if (!instanceHasAllExtensions(debugExtensions) || !instanceHasAllLayers(debugLayers)) {
-      LOG_E("Cannot enable debug messages: required extension(s) or layer(s) not available");
+    if (!instanceHasAllExtensions(debugExtensions) ||
+        !instanceHasAllLayers(debugLayers)) {
+      LOG_E(
+          "Cannot enable debug messages: required extension(s) or layer(s) not "
+          "available");
     } else {
-      // Add the requried extension to the list of required extensions passed in by the user:
-      requiredExtensions.insert(requiredExtensions.end(), debugExtensions.begin(), debugExtensions.end());
+      // Add the requried extension to the list of required extensions passed in
+      // by the user:
+      requiredExtensions.insert(requiredExtensions.end(),
+                                debugExtensions.begin(), debugExtensions.end());
 
-      // Add the required layers to the list of required layers passed in by the user
-      requiredLayers.insert(requiredLayers.end(), debugLayers.begin(), debugLayers.end());
+      // Add the required layers to the list of required layers passed in by the
+      // user
+      requiredLayers.insert(requiredLayers.end(), debugLayers.begin(),
+                            debugLayers.end());
 
-      debugCreateInfo = {};
-      debugCreateInfo.sType =
-          VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-      
-      // TODO: implement message severity filtering. 
-      // Maybe do this at runtime in the log message handler?
-      debugCreateInfo.messageSeverity =
-          VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+      populateDebugMessengerCreateInfo(debugCreateInfo);
 
-      // TODO: implement message type filtering
-      // Maybe do this at runtime in the log message handler?
-      debugCreateInfo.messageType =
-          VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-          VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-      debugCreateInfo.pfnUserCallback = debugCallbackShim;
-      debugCreateInfo.pUserData = this;
-
-      // Add the debugCreateInfo to the main vkInstance createInfo so that both get initialized
-      createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
+      // Add the debugCreateInfo to the main vkInstance createInfo so that both
+      // get initialized
+      createInfo.pNext = &debugCreateInfo;
     }
   }
 
@@ -84,7 +117,8 @@ Instance::Instance(const std::string& applicationName,
 
   std::vector<const char*> vkRequiredlayers(requiredLayers.size());
 
-  for (size_t i = 0; i < layers.size(); i++) {
+  for (size_t i = 0; i < requiredLayers.size(); i++) {
+    LOG_D("Requesting Layer: {}", requiredLayers[i]);
     vkRequiredlayers[i] = requiredLayers[i].c_str();
   }
 
@@ -93,6 +127,16 @@ Instance::Instance(const std::string& applicationName,
 
   if (vkCreateInstance(&createInfo, nullptr, &instance_) != VK_SUCCESS) {
     LOG_F("Failed to create Vulkan instance");
+  }
+
+  if (enableDebugMessages) {
+    if (createDebugUtilsMessengerEXT(instance_, &debugCreateInfo, nullptr,
+                                     &debugMessenger_) != VK_SUCCESS) {
+      LOG_E("failed to setup debug message hook");
+      debugMessenger_ = nullptr;
+    } else {
+      LOG_D("Vulkan debug message hook installed");
+    }
   }
 }
 
@@ -137,6 +181,13 @@ VkBool32 Instance::debugCallback(
 }
 
 Instance::~Instance() {
+  if (debugMessenger_) {
+    if (destroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr) !=
+        VK_SUCCESS) {
+      LOG_E("Failed to destroy debug utils extension");
+    }
+  }
+
   vkDestroyInstance(instance_, nullptr);
 }
 

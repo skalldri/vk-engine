@@ -185,7 +185,7 @@ void setupDebugMessenger() {
 
   if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr,
                                    &debugMessenger) != VK_SUCCESS) {
-    throw std::runtime_error("failed to setup debug message hook");
+    LOG_F("failed to setup debug message hook");
   }
 }
 
@@ -1392,7 +1392,7 @@ void drawFrame() {
 
 void initVulkan() {
   createInstance();
-  setupDebugMessenger();
+  // setupDebugMessenger();
   createSurface();
   pickPhysicalDevice();
   createLogicalDevice();
@@ -1428,9 +1428,9 @@ void cleanup() {
 
   vkDestroyDevice(device, nullptr);
 
-  if (enableValidationLayers) {
-    DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
-  }
+  // if (enableValidationLayers) {
+  //   DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+  // }
 
   vkDestroySurfaceKHR(instance, surface, nullptr);
 

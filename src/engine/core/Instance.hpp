@@ -86,6 +86,8 @@ class Instance {
   static bool instanceHasAllLayers(const Layers& layers);
 
  private:
+  void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
+
   static VKAPI_ATTR VkBool32 VKAPI_CALL
   debugCallbackShim(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                     VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -99,4 +101,5 @@ class Instance {
 
  private:
   VkInstance instance_;
+  VkDebugUtilsMessengerEXT debugMessenger_;
 };
