@@ -17,7 +17,6 @@ using Layers = std::vector<Layer>;
 
 class Instance {
  public:
-
   // No default constructor
   Instance() = delete;
 
@@ -37,17 +36,19 @@ class Instance {
    * @param layers a list of layers that should be enabled
    */
   Instance(const std::string& applicationName,
-           const Version& applicationVersion, bool enableDebugMessages,
-           const Extensions& extensions, const Layers& layers);
+           const Version& applicationVersion,
+           bool enableDebugMessages,
+           const Extensions& extensions,
+           const Layers& layers);
 
   ~Instance();
 
   /**
    * @brief Get the Instance object
    * DEBUG ONLY WHILE INTEGRATING INTO THE CURRENT CODE
-   * @return VkInstance 
+   * @return VkInstance
    */
-  VkInstance getInstance() {return instance_; }
+  VkInstance getInstance() const { return instance_; }
 
   /**
    * @brief Get the list of extensions supported by this instance
@@ -85,8 +86,11 @@ class Instance {
    */
   static bool instanceHasAllLayers(const Layers& layers);
 
+  const Layers& getEnabledLayers();
+
  private:
-  void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
+  void populateDebugMessengerCreateInfo(
+      VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 
   static VKAPI_ATTR VkBool32 VKAPI_CALL
   debugCallbackShim(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -102,4 +106,5 @@ class Instance {
  private:
   VkInstance instance_;
   VkDebugUtilsMessengerEXT debugMessenger_;
+  Layers enabledLayers_;
 };

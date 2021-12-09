@@ -11,11 +11,13 @@ const Extensions debugExtensions = {VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
 const Layers debugLayers = {"VK_LAYER_KHRONOS_validation"};
 
 VkResult createDebugUtilsMessengerEXT(
-    VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+    VkInstance instance,
+    const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
     const VkAllocationCallbacks* pAllocator,
     VkDebugUtilsMessengerEXT* pDebugMessenger) {
   auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-      instance, "vkCreateDebugUtilsMessengerEXT");
+      instance,
+      "vkCreateDebugUtilsMessengerEXT");
   if (func != nullptr) {
     return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
   } else {
@@ -24,10 +26,12 @@ VkResult createDebugUtilsMessengerEXT(
 }
 
 VkResult destroyDebugUtilsMessengerEXT(
-    VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
+    VkInstance instance,
+    VkDebugUtilsMessengerEXT debugMessenger,
     const VkAllocationCallbacks* pAllocator) {
   auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-      instance, "vkDestroyDebugUtilsMessengerEXT");
+      instance,
+      "vkDestroyDebugUtilsMessengerEXT");
   if (func != nullptr) {
     func(instance, debugMessenger, pAllocator);
     return VK_SUCCESS;
@@ -52,8 +56,10 @@ void Instance::populateDebugMessengerCreateInfo(
 }
 
 Instance::Instance(const std::string& applicationName,
-                   const Version& applicationVersion, bool enableDebugMessages,
-                   const Extensions& extensions, const Layers& layers) {
+                   const Version& applicationVersion,
+                   bool enableDebugMessages,
+                   const Extensions& extensions,
+                   const Layers& layers) {
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   appInfo.pApplicationName = applicationName.c_str();
@@ -73,7 +79,7 @@ Instance::Instance(const std::string& applicationName,
   createInfo.pApplicationInfo = &appInfo;
 
   Extensions requiredExtensions = extensions;
-  Layers requiredLayers = layers;
+  enabledLayers_ = layers;
 
   Extensions availableExtensions = getInstanceExtensions();
   Layers availableLayers = getInstanceLayers();
@@ -90,11 +96,13 @@ Instance::Instance(const std::string& applicationName,
       // Add the requried extension to the list of required extensions passed in
       // by the user:
       requiredExtensions.insert(requiredExtensions.end(),
-                                debugExtensions.begin(), debugExtensions.end());
+                                debugExtensions.begin(),
+                                debugExtensions.end());
 
       // Add the required layers to the list of required layers passed in by the
       // user
-      requiredLayers.insert(requiredLayers.end(), debugLayers.begin(),
+      enabledLayers_.insert(enabledLayers_.end(),
+                            debugLayers.begin(),
                             debugLayers.end());
 
       populateDebugMessengerCreateInfo(debugCreateInfo);
@@ -115,11 +123,11 @@ Instance::Instance(const std::string& applicationName,
   createInfo.enabledExtensionCount = vkRequiredExtensions.size();
   createInfo.ppEnabledExtensionNames = vkRequiredExtensions.data();
 
-  std::vector<const char*> vkRequiredlayers(requiredLayers.size());
+  std::vector<const char*> vkRequiredlayers(enabledLayers_.size());
 
-  for (size_t i = 0; i < requiredLayers.size(); i++) {
-    LOG_D("Requesting Layer: {}", requiredLayers[i]);
-    vkRequiredlayers[i] = requiredLayers[i].c_str();
+  for (size_t i = 0; i < enabledLayers_.size(); i++) {
+    LOG_D("Requesting Layer: {}", enabledLayers_[i]);
+    vkRequiredlayers[i] = enabledLayers_[i].c_str();
   }
 
   createInfo.enabledLayerCount = vkRequiredlayers.size();
@@ -130,7 +138,9 @@ Instance::Instance(const std::string& applicationName,
   }
 
   if (enableDebugMessages) {
-    if (createDebugUtilsMessengerEXT(instance_, &debugCreateInfo, nullptr,
+    if (createDebugUtilsMessengerEXT(instance_,
+                                     &debugCreateInfo,
+                                     nullptr,
                                      &debugMessenger_) != VK_SUCCESS) {
       LOG_E("failed to setup debug message hook");
       debugMessenger_ = nullptr;
@@ -196,7 +206,8 @@ Extensions Instance::getInstanceExtensions() {
   vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
 
   std::vector<VkExtensionProperties> vkExtensions(extensionCount);
-  vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount,
+  vkEnumerateInstanceExtensionProperties(nullptr,
+                                         &extensionCount,
                                          vkExtensions.data());
 
   Extensions extensions(extensionCount);
@@ -231,7 +242,8 @@ bool Instance::instanceHasAllExtensions(const Extensions& extensions) {
 
   for (const auto& wantedExtension : extensions) {
     size_t count = std::count(availableExtensions.begin(),
-                              availableExtensions.end(), wantedExtension);
+                              availableExtensions.end(),
+                              wantedExtension);
     if (count == 0) {
       LOG_W("Instance is missing extension '{}', which was requested",
             wantedExtension);
@@ -257,4 +269,8 @@ bool Instance::instanceHasAllLayers(const Layers& layers) {
   }
 
   return hasAll;
+}
+
+const Layers& Instance::getEnabledLayers() {
+  return enabledLayers_;
 }
