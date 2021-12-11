@@ -1,3 +1,5 @@
+add_subdirectory(shaders)
+
 add_executable(engine)
 
 target_sources(
@@ -30,3 +32,20 @@ target_compile_definitions(engine PRIVATE
 
 target_compile_options(engine PUBLIC /EHsc /Zi)
 target_link_options(engine PUBLIC /DEBUG:FULL)
+
+# First for the generic no-config case (e.g. with mingw)
+set_target_properties( engine PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR} )
+set_target_properties( engine PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR} )
+set_target_properties( engine PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR} )
+set_target_properties( engine PROPERTIES PDB_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR} )
+set_target_properties( engine PROPERTIES COMPILE_PDB_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR} )
+
+# Second, for multi-config builds (e.g. msvc)
+foreach( OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES} )
+    string( TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG )
+    set_target_properties( engine PROPERTIES RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_BINARY_DIR} )
+    set_target_properties( engine PROPERTIES LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_BINARY_DIR} )
+    set_target_properties( engine PROPERTIES ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_BINARY_DIR} )
+    set_target_properties( engine PROPERTIES PDB_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_BINARY_DIR} )
+    set_target_properties( engine PROPERTIES COMPILE_PDB_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_BINARY_DIR} )
+endforeach( OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES )

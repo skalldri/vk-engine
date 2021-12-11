@@ -89,5 +89,6 @@
         "xutility": "cpp"
     },
     "C_Cpp.clang_format_fallbackStyle": "Google",
-    "editor.tabSize": 2
+    "editor.tabSize": 2,
+    "cmake.configureOnOpen": true
 }
