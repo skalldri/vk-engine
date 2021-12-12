@@ -10,3 +10,6 @@
 [submodule "ext/glfw"]
 	path = ext/glfw
 	url = https://github.com/glfw/glfw.git
+[submodule "ext/tinygltf"]
+	path = ext/tinygltf
+	url = https://github.com/syoyo/tinygltf.git
