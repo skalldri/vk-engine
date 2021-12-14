@@ -12,3 +12,5 @@ std::string vkPresentModeKHRToString(VkPresentModeKHR presentMode);
 
 std::vector<std::string> vkSurfaceTransformFlagsToString(
     VkSurfaceTransformFlagsKHR flags);
+
+const char *vkPhysicalDeviceTypeToString(VkPhysicalDeviceType type);

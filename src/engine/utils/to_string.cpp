@@ -606,3 +606,24 @@ std::vector<std::string> vkSurfaceTransformFlagsToString(
 
   return flags_string;
 }
+
+const char *vkPhysicalDeviceTypeToString(VkPhysicalDeviceType type) {
+  switch (type) {
+    case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+      return "OTHER";
+
+    case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+      return "INTEGRATED";
+
+    case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+      return "DISCRETE";
+
+    case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+      return "VIRTUAL";
+
+    case VK_PHYSICAL_DEVICE_TYPE_CPU:
+      return "CPU";
+  }
+
+  return "UNKNOWN";
+}

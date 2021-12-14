@@ -6,7 +6,8 @@ target_sources(
     PRIVATE
         ShaderModule.cpp
         Instance.cpp
-        Device.cpp)
+        Device.cpp
+        Swapchain.cpp)
 
 target_include_directories(
     core

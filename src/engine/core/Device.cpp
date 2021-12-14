@@ -161,6 +161,13 @@ void PhysicalDevice::init() {
   // to push up into the application layer
 }
 
+VkPhysicalDeviceProperties PhysicalDevice::getProperties() const {
+  VkPhysicalDeviceProperties deviceProperties;
+  vkGetPhysicalDeviceProperties(device_, &deviceProperties);
+
+  return deviceProperties;
+}
+
 std::vector<QueueFamily> PhysicalDevice::getQueueFamilies() const {
   return queueFamilies_;
 }
@@ -299,10 +306,10 @@ struct QueueRequestsForSingleFamily {
 };
 
 LogicalDevice::LogicalDevice(Instance& instance,
-                             const PhysicalDevice& physicalDevice,
+                             PhysicalDevice&& physicalDevice,
                              const DeviceExtensions& requiredExtensions,
                              QueueFamilyRequests& requests)
-    : instance_(instance) {
+    : instance_(instance), physicalDevice_(std::move(physicalDevice)) {
   // Step 1: figure out how many different queue families were requested
   // Map QueueFamily Index -> QueueFamilyRequest
   std::multimap<uint32_t, QueueFamilyRequest&> familyRequests;
@@ -366,7 +373,7 @@ LogicalDevice::LogicalDevice(Instance& instance,
   VkPhysicalDeviceFeatures deviceFeatures{};
   createInfo.pEnabledFeatures = &deviceFeatures;
 
-  if (!physicalDevice.hasAllExtensions(requiredExtensions)) {
+  if (!physicalDevice_.hasAllExtensions(requiredExtensions)) {
     LOG_F("Physical device does not have all required extensions");
   }
 
@@ -413,7 +420,7 @@ LogicalDevice::LogicalDevice(Instance& instance,
   createInfo.enabledLayerCount = vkValidationLayers.size();
   createInfo.ppEnabledLayerNames = vkValidationLayers.data();
 
-  if (vkCreateDevice(physicalDevice.device_, &createInfo, nullptr, &device_) !=
+  if (vkCreateDevice(physicalDevice_.device_, &createInfo, nullptr, &device_) !=
       VK_SUCCESS) {
     LOG_F("failed to create logical device!");
   }
@@ -436,7 +443,7 @@ LogicalDevice::LogicalDevice(Instance& instance,
 }
 
 LogicalDevice::LogicalDevice(LogicalDevice&& other)
-    : instance_(other.instance_) {
+    : instance_(other.instance_), physicalDevice_(std::move(other.physicalDevice_)) {
   if (device_) {
     vkDestroyDevice(device_, nullptr);
   }
