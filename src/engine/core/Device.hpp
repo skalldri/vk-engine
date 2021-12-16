@@ -83,6 +83,8 @@ class PhysicalDevice {
   // TODO: REMOVE THIS, ONLY FOR INTEGRGATION WITH ORIGINAL ENGINE
   VkPhysicalDevice getVkPhysicalDevice() const {return device_; }
 
+  operator VkPhysicalDevice() const { return device_; }
+
  private:
   PhysicalDevice(Instance& instance, VkPhysicalDevice device, std::optional<VkSurfaceKHR> surface);
 
@@ -126,13 +128,16 @@ class LogicalDevice {
   // TODO: REMOVE THIS, ONLY FOR INTEGRGATION WITH ORIGINAL ENGINE
   VkDevice getVkDevice() const {return device_; }
 
-  const PhysicalDevice& getPhysicalDevice() {return physicalDevice_; }
+  const PhysicalDevice& getPhysicalDevice() const {return physicalDevice_; }
+
+  operator VkDevice() const { return device_; }
+
+  operator VkPhysicalDevice() const { return physicalDevice_; }
 
  private:
   PhysicalDevice physicalDevice_;
   Instance& instance_;
   std::vector<VkQueue> queues_;
   VkDevice device_ = nullptr;
-  
 };
 

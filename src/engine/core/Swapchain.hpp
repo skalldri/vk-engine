@@ -36,14 +36,23 @@ class Swapchain {
   Swapchain() = delete;
   Swapchain(Swapchain& other) = delete;
 
+  ~Swapchain();
+
   Swapchain(Swapchain&& other);
 
   Swapchain(const LogicalDevice& device, 
-            const VkSurfaceKHR& surface);
+            const VkSurfaceKHR& surface,
+            std::vector<QueueFamilyRequest> queues);
+
+  VkExtent2D getExtent() { return extent_; }
+
+  VkFormat getFormat() { return format_; }
+
+  const std::vector<VkImage>& getImages() { return images_; }
 
   bool isOptimal();
 
-  ~Swapchain();
+  operator VkSwapchainKHR() { return swapchain_; }
 
  private:
   const LogicalDevice& device_;
@@ -51,4 +60,5 @@ class Swapchain {
   std::vector<VkImage> images_;
   VkFormat format_;
   VkExtent2D extent_;
+  VkSwapchainKHR swapchain_;
 };
