@@ -3,15 +3,15 @@
 
 const char* logLevelToString(LogLevel l) {
   switch (l) {
-    case LogLevel::DEBUG:
+    case LogLevel::Debug:
       return "DEBUG";
-    case LogLevel::INFO:
+    case LogLevel::Info:
       return "INFO";
-    case LogLevel::WARNING:
+    case LogLevel::Warning:
       return "WARNING";
-    case LogLevel::ERROR:
+    case LogLevel::Error:
       return "ERROR";
-    case LogLevel::FATAL:
+    case LogLevel::Fatal:
       return "FATAL";
   }
 
@@ -27,7 +27,7 @@ std::string getModuleName(const char* file) {
 
 bool shouldPrintLineNumber(const char* file, LogLevel level) {
   // TODO: add more fancy stuff later (like chaning log-level per module)
-  if (level == LogLevel::WARNING || level == LogLevel::ERROR) {
+  if (level == LogLevel::Warning || level == LogLevel::Error) {
     return true;
   } else {
     return false;

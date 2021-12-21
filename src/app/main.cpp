@@ -8,6 +8,9 @@
 #include <engine/core/Instance.hpp>
 #include <engine/core/Swapchain.hpp>
 #include <engine/utils/to_string.hpp>
+
+#include <engine/win32/GlfwWindowSystem.hpp>
+
 #include <exception>
 #include <fmtlog/Log.hpp>
 #include <fstream>
@@ -15,16 +18,9 @@
 #include <optional>
 #include <string>
 
-#define VK_USE_PLATFORM_WIN32_KHR
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#define GLFW_EXPOSE_NATIVE_WIN32
-#include <GLFW/glfw3native.h>
-
 using namespace std;
 
-GLFWwindow *window;
+GlfwWindowSystem* windowSystem;
 
 Instance *instanceCpp;
 Swapchain *swapchain;
@@ -183,155 +179,17 @@ void populateDebugMessengerCreateInfo(
   createInfo.pUserData = nullptr;  // Optional
 }
 
-static void framebufferResizeCallback(GLFWwindow *window,
-                                      int width,
-                                      int height) {
-  framebufferResized = true;
-}
-
 void initWindow() {
-  // Initialize GLFW
-  if (!glfwInit()) {
-    fmt::print("Failed to init GLFW\n");
-    throw std::runtime_error("GLFW Init Error");
-  }
-
-  fmt::print("GLFW initialized\n");
-
-  if (glfwVulkanSupported()) {
-    // Vulkan is available, at least for compute
-    fmt::print("GLFW detected vulkan support\n");
-  } else {
-    fmt::print("GLFW did not detect vulkan support\n");
-    throw std::runtime_error("GLFW No Vulkan Support");
-  }
-
-  // Tell GLFW we don't want it to assume a client API (since GLFW defaults to
-  // OpenGL support)
-  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-  // Tell GLFW not to allow window resizing. Might revisit this later, but this
-  // is fine for now
-  glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
-  window = glfwCreateWindow(window_width,
-                            window_height,
-                            "VK Engine",
-                            nullptr,
-                            nullptr);
-
-  // glfwSetWindowUserPointer(window, this); use later when using OOP
-
-  glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-}
-
-std::vector<const char *> getRequiredInstanceExtensions() {
-  uint32_t glfwExtensionCount = 0;
-  const char **glfwExtensions;
-
-  // Query GLFW to figure out what extensions it needs from Vulkan
-  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-  std::vector<const char *> extensions(glfwExtensions,
-                                       glfwExtensions + glfwExtensionCount);
-
-  if (enableValidationLayers) {
-    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-  }
-
-  for (auto extension : extensions) {
-    fmt::print("Required Extension: {}\n", extension);
-  }
-
-  return extensions;
+  windowSystem = new GlfwWindowSystem();
 }
 
 void createInstance() {
-  /*
-  VkApplicationInfo appInfo{};
-  appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  appInfo.pApplicationName = "Hello Triangle";
-  appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-  appInfo.pEngineName = "No Engine";
-  appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-  appInfo.apiVersion = VK_API_VERSION_1_0;
-
-  VkInstanceCreateInfo createInfo{};
-  createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  createInfo.pApplicationInfo = &appInfo;
-
-  uint32_t extensionCount = 0;
-  vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-
-  std::vector<VkExtensionProperties> extensions(extensionCount);
-  vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount,
-                                         extensions.data());
-
-  fmt::print("Available Vulkan Extensions:\n");
-  for (const auto &extension : extensions) {
-    fmt::print("\t{}\n", extension.extensionName);
-  }
-
-  std::vector<const char *> requiredExtensions =
-      getRequiredInstanceExtensions();
-
-  // Set the requested extensions from GLFW
-  createInfo.enabledExtensionCount = requiredExtensions.size();
-  createInfo.ppEnabledExtensionNames = requiredExtensions.data();
-
-  VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
-  if (enableValidationLayers && checkValidationLayerSupport()) {
-    createInfo.enabledLayerCount = validationLayers.size();
-    createInfo.ppEnabledLayerNames = validationLayers.data();
-
-    populateDebugMessengerCreateInfo(debugCreateInfo);
-    createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugCreateInfo;
-  } else {
-    createInfo.enabledLayerCount = 0;
-  }
-
-  if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-    throw std::runtime_error("Failed to create Vulkan instance");
-  }
-  */
-
-  uint32_t glfwExtensionCount = 0;
-  const char **glfwExtensions;
-
-  // Query GLFW to figure out what extensions it needs from Vulkan
-  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-  Extensions requiredExtensions(glfwExtensions,
-                                glfwExtensions + glfwExtensionCount);
-
-  for (auto extension : requiredExtensions) {
-    LOG_D("GLFW Requires Extension: {}", extension);
-  }
-
   instanceCpp = new Instance("Hello Triangle",
                              {1, 0, 0},  // App Version
                              enableValidationLayers,
-                             requiredExtensions,
+                             windowSystem->getRequiredVkInstanceExtensions(),
                              {}  // required layers
   );
-  // instance = instanceCpp->getInstance();
-}
-
-std::vector<VkPhysicalDevice> listPhysicalDevices() {
-  uint32_t deviceCount = 0;
-  vkEnumeratePhysicalDevices(instanceCpp->getInstance(), &deviceCount, nullptr);
-
-  if (deviceCount == 0) {
-    throw std::runtime_error("failed to find GPUs with Vulkan support!");
-  }
-
-  std::vector<VkPhysicalDevice> devices(deviceCount);
-
-  vkEnumeratePhysicalDevices(instanceCpp->getInstance(),
-                             &deviceCount,
-                             devices.data());
-
-  return devices;
 }
 
 bool isDeviceSuitable(const PhysicalDevice &device) {
@@ -426,57 +284,6 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
     LOG_F("Failed to get valid queue");
   }
 }
-
-/*
-VkSurfaceFormatKHR chooseSwapSurfaceFormat(
-    const std::vector<VkSurfaceFormatKHR> &availableFormats) {
-  for (const auto &availableFormat : availableFormats) {
-    if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
-        availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-      return availableFormat;
-    }
-  }
-
-  // Pick first format if our preferred SRGBA8888 format isn't available
-  return availableFormats[0];
-}
-
-VkPresentModeKHR chooseSwapPresentMode(
-    const std::vector<VkPresentModeKHR> &availablePresentModes) {
-  // Pick MAILBOX present mode (effectively tripple buffering) if available
-  for (const auto &availablePresentMode : availablePresentModes) {
-    if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-      return availablePresentMode;
-    }
-  }
-
-  return VK_PRESENT_MODE_FIFO_KHR;  // This is guaranteed to be available by the
-                                    // Vulkan spec
-}
-
-VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities) {
-  // If the Width / Height are UINT32_MAX, then our underlying Vulkan
-  // implementation is going to pick the correct size extent to fill the window
-  // automatically, and we can just return that value
-  if (capabilities.currentExtent.width != UINT32_MAX) {
-    return capabilities.currentExtent;
-  } else {
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-
-    VkExtent2D actualExtent = {width, height};
-
-    actualExtent.width = std::clamp(actualExtent.width,
-                                    capabilities.minImageExtent.width,
-                                    capabilities.maxImageExtent.width);
-    actualExtent.width = std::clamp(actualExtent.height,
-                                    capabilities.minImageExtent.height,
-                                    capabilities.maxImageExtent.height);
-
-    return actualExtent;
-  }
-}
-*/
 
 void createSwapChain(const LogicalDevice& device) {
 
@@ -597,12 +404,7 @@ void createSwapChain(const LogicalDevice& device) {
 }
 
 void createSurface() {
-  if (glfwCreateWindowSurface(instanceCpp->getInstance(),
-                              window,
-                              nullptr,
-                              &surface) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create window surface");
-  }
+  surface = windowSystem->createSurface(*instanceCpp);
 }
 
 void createImageViews() {
@@ -1107,12 +909,11 @@ void cleanupSwapChain() {
 }
 
 void recreateSwapChain() {
-  // Test if we've been minimized
-  int width = 0, height = 0;
-  glfwGetFramebufferSize(window, &width, &height);
-  while (width == 0 || height == 0) {
-    glfwGetFramebufferSize(window, &width, &height);
-    glfwWaitEvents();
+  // Test if we've been minimized: block 
+  // until we are visible again before trying to regenerate 
+  // the swapchain
+  while (!windowSystem->isVisible()) {
+    windowSystem->waitEvents();
   }
 
   vkDeviceWaitIdle(deviceCpp->getVkDevice());
@@ -1258,8 +1059,8 @@ void initVulkan() {
 }
 
 void mainLoop() {
-  while (!glfwWindowShouldClose(window)) {
-    glfwPollEvents();
+  while (!windowSystem->shouldApplicationExit()) {
+    windowSystem->pollEvents();
     drawFrame();
   }
 
@@ -1287,8 +1088,7 @@ void cleanup() {
 
   delete instanceCpp;
 
-  glfwDestroyWindow(window);
-  glfwTerminate();
+  delete windowSystem;
 }
 
 int main(int argc, char **argv) {

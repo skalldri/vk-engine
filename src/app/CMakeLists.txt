@@ -18,6 +18,7 @@ target_link_libraries(
         CLI11::CLI11
         Vulkan::Vulkan
         core
+        core-win32
         utils
 )
 
