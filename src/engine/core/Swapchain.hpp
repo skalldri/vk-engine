@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 
 #include <engine/core/Device.hpp>
+#include <engine/core/Image.hpp>
 
 #include <vector>
 
@@ -44,20 +45,20 @@ class Swapchain {
             const VkSurfaceKHR& surface,
             std::vector<QueueFamilyRequest> queues);
 
-  VkExtent2D getExtent() { return extent_; }
+  VkExtent2D getExtent() const { return extent_; }
 
-  VkFormat getFormat() { return format_; }
+  VkFormat getFormat() const { return format_; }
 
-  const std::vector<VkImage>& getImages() { return images_; }
+  const std::vector<Image>& getImages() const { return images_; }
 
-  bool isOptimal();
+  bool isOptimal() const;
 
-  operator VkSwapchainKHR() { return swapchain_; }
+  operator VkSwapchainKHR() const { return swapchain_; }
 
  private:
   const LogicalDevice& device_;
   const VkSurfaceKHR& surface_;
-  std::vector<VkImage> images_;
+  std::vector<Image> images_;
   VkFormat format_;
   VkExtent2D extent_;
   VkSwapchainKHR swapchain_;

@@ -27,9 +27,6 @@ Swapchain *swapchain;
 
 VkDebugUtilsMessengerEXT debugMessenger;
 
-constexpr size_t window_width = 800;
-constexpr size_t window_height = 600;
-
 const Layers validationLayers = {"VK_LAYER_KHRONOS_validation"};
 
 const std::vector<std::string> deviceExtensionsCpp = {
@@ -51,10 +48,6 @@ QueueFamilyRequest presentationQueueRequest;
 
 VkSurfaceKHR surface;
 
-// VkSwapchainKHR swapChain;
-// VkFormat swapChainImageFormat;
-// VkExtent2D swapChainExtent;
-
 VkRenderPass renderPass;
 VkPipelineLayout pipelineLayout;
 VkPipeline graphicsPipeline;
@@ -65,119 +58,14 @@ std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> renderFinishedSemaphores;
 std::array<VkFence, MAX_FRAMES_IN_FLIGHT> inFlightFences;
 std::vector<VkFence> imagesInFlight;
 
-// std::vector<VkImage> swapChainImages;
 std::vector<VkCommandBuffer> commandBuffers;
 std::vector<VkFramebuffer> swapChainFramebuffers;
-std::vector<VkImageView> swapChainImageViews;
+
+std::vector<ImageView> swapChainImageViews;
 
 size_t currentFrame = 0;
 
 bool framebufferResized = false;
-
-static VKAPI_ATTR VkBool32 VKAPI_CALL
-debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-              VkDebugUtilsMessageTypeFlagsEXT messageType,
-              const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-              void *pUserData) {
-  std::string severity = "INVALID SEVERITY";
-
-  // TODO: implement message severity filtering
-  if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
-    severity = "VERBOSE";
-  } else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
-    severity = "INFO";
-  } else if (messageSeverity &
-             VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-    severity = "WARNING";
-  } else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-    severity = "ERROR";
-  }
-
-  std::string type = "INVALID TYPE";
-
-  // TODO: implement message severity filtering
-  if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT) {
-    type = "GENERAL";
-  } else if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) {
-    type = "VALIDATION";
-  } else if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) {
-    type = "PERFORMANCE";
-  }
-
-  fmt::print("[VK] [{}] [{}] {}\n", severity, type, pCallbackData->pMessage);
-
-  return VK_FALSE;
-}
-
-bool checkValidationLayerSupport() {
-  uint32_t layerCount;
-  vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-
-  std::vector<VkLayerProperties> availableLayers(layerCount);
-  vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-  bool allLayersFound = true;
-  for (auto requestedLayer : validationLayers) {
-    bool layerPresent = false;
-
-    for (auto availableLayer : availableLayers) {
-      if (strcmp(requestedLayer.c_str(), availableLayer.layerName) == 0) {
-        layerPresent = true;
-        break;
-      }
-    }
-
-    if (layerPresent) {
-      LOG_I("Layer {} is availabe\n", requestedLayer);
-    } else {
-      LOG_W("Layer {} is not available\n", requestedLayer);
-      allLayersFound = false;
-    }
-  }
-
-  return allLayersFound;
-}
-
-VkResult CreateDebugUtilsMessengerEXT(
-    VkInstance instance,
-    const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
-    const VkAllocationCallbacks *pAllocator,
-    VkDebugUtilsMessengerEXT *pDebugMessenger) {
-  auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-      instance,
-      "vkCreateDebugUtilsMessengerEXT");
-  if (func != nullptr) {
-    return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-  } else {
-    return VK_ERROR_EXTENSION_NOT_PRESENT;
-  }
-}
-
-void DestroyDebugUtilsMessengerEXT(VkInstance instance,
-                                   VkDebugUtilsMessengerEXT debugMessenger,
-                                   const VkAllocationCallbacks *pAllocator) {
-  auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-      instance,
-      "vkDestroyDebugUtilsMessengerEXT");
-  if (func != nullptr) {
-    func(instance, debugMessenger, pAllocator);
-  }
-}
-
-void populateDebugMessengerCreateInfo(
-    VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
-  createInfo = {};
-  createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-  createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-                               VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-                               VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                               VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-  createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                           VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                           VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-  createInfo.pfnUserCallback = debugCallback;
-  createInfo.pUserData = nullptr;  // Optional
-}
 
 void initWindow() {
   windowSystem = new GlfwWindowSystem();
@@ -218,9 +106,10 @@ bool isDeviceSuitable(const PhysicalDevice &device) {
                         !swapChainSupport.presentModes.empty();
   }
 
-  return hasGraphicsFamily && hasPresentFamily &&
-         // deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
-         // && deviceFeatures.geometryShader &&
+  return hasGraphicsFamily && 
+         hasPresentFamily &&
+         device.getProperties().deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
+         device.getFeatures().geometryShader &&
          extensionsSupported && swapChainAdequate;
 }
 
@@ -288,119 +177,6 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
 void createSwapChain(const LogicalDevice& device) {
 
   swapchain = new Swapchain(device, surface, {graphicsQueueRequest, presentationQueueRequest});
-
-  /*
-  // We are presenting to a particular kind of Surface.
-  // Surfaces represent a way that the OS can display content to the user.
-  // We need to query the underlying OS to determine what Swapchain formats this
-  // Surface could display. As a concrete example, the OS compositor might not
-  // support 16-bit color formats. If we created a swapchain that used 16-bit
-  // color formats, we wouldn't be able to present it. So, query the underlying
-  // surface to figure out what swapchain format we should generate
-  SwapChainSupportDetails swapChainSupport =
-      deviceCpp->getPhysicalDevice().querySwapChainSupport(surface);
-
-  VkSurfaceFormatKHR surfaceFormat =
-      chooseSwapSurfaceFormat(swapChainSupport.formats);
-
-  VkPresentModeKHR presentMode =
-      chooseSwapPresentMode(swapChainSupport.presentModes);
-
-  VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
-
-  // The minimum number of images required in the swap chain
-  // We ask for one additional image to help prevent us from getting stuck
-  // waiting for the driver to give us another image.
-  uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-
-  // Make sure the driver actually supports this many images though...
-  if (swapChainSupport.capabilities.maxImageCount > 0 &&
-      imageCount > swapChainSupport.capabilities.maxImageCount) {
-    imageCount = swapChainSupport.capabilities.maxImageCount;
-  }
-
-  LOG_I("Initializing SwapChain with these paramters:");
-  LOG_I("\tFormat: {}, {}",
-        vkFormatToString(surfaceFormat.format),
-        vkColorspaceKHRToString(surfaceFormat.colorSpace));
-  LOG_I("\tPresent Mode: {}", vkPresentModeKHRToString(presentMode));
-  LOG_I("\tExtent: {}x{}", extent.width, extent.height);
-
-  VkSwapchainCreateInfoKHR createInfo{};
-  createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-  createInfo.surface = surface;
-
-  createInfo.minImageCount = imageCount;
-  createInfo.imageFormat = surfaceFormat.format;
-  createInfo.imageColorSpace = surfaceFormat.colorSpace;
-  createInfo.imageExtent = extent;
-  createInfo.imageArrayLayers = 1;
-  createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-  uint32_t queueFamilyIndices[] = {graphicsQueueRequest.family.index,
-                                   presentationQueueRequest.family.index};
-
-  // If the graphics and present queues are separate, then we need to indicate
-  // which queue indices are going to be allowed to operate on the swapchain and
-  // pick the correct operating mode
-  if (graphicsQueueRequest.family.index !=
-      presentationQueueRequest.family.index) {
-    createInfo.imageSharingMode =
-        VK_SHARING_MODE_CONCURRENT;  // Poor performance, easier to use
-    createInfo.queueFamilyIndexCount = 2;
-    createInfo.pQueueFamilyIndices = queueFamilyIndices;
-    LOG_W(
-        "Using concurrent queue family sharing for swapchain, expect "
-        "reduced performance\n");
-    LOG_W("Graphics family: {}, Present Family: {}\n",
-          graphicsQueueRequest.family.index,
-          presentationQueueRequest.family.index);
-  } else {
-    createInfo.imageSharingMode =
-        VK_SHARING_MODE_EXCLUSIVE;             // Best performance
-    createInfo.queueFamilyIndexCount = 0;      // Optional
-    createInfo.pQueueFamilyIndices = nullptr;  // Optional
-  }
-
-  // Specify that we don't want any transform on the image by setting the
-  // preTransform to the currentTransform
-  createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
-
-  // Should this be blended with other windows in the windowing system?
-  // Set to opaque for no
-  // TODO: can this create transparent / blurred windows?
-  createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-
-  createInfo.presentMode = presentMode;
-
-  // We don't care about the contents of pixels obscurred by other windows
-  createInfo.clipped = VK_TRUE;
-
-  // Used when we want to re-create the swapchain, for example if the window
-  // gets resized. NULL for now.
-  createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-  if (vkCreateSwapchainKHR(deviceCpp->getVkDevice(),
-                           &createInfo,
-                           nullptr,
-                           &swapChain) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create swap chain!");
-  }
-
-  // Retrieve the images from the swapchain
-  vkGetSwapchainImagesKHR(deviceCpp->getVkDevice(),
-                          swapChain,
-                          &imageCount,
-                          nullptr);
-  swapChainImages.resize(imageCount);
-  vkGetSwapchainImagesKHR(deviceCpp->getVkDevice(),
-                          swapChain,
-                          &imageCount,
-                          swapChainImages.data());
-
-  swapChainImageFormat = surfaceFormat.format;
-  swapChainExtent = extent;
-  */
 }
 
 void createSurface() {
@@ -408,8 +184,13 @@ void createSurface() {
 }
 
 void createImageViews() {
-  swapChainImageViews.resize(swapchain->getImages().size());
+  // swapChainImageViews.resize(swapchain->getImages().size());
 
+  for (auto& image : swapchain->getImages()) {
+    swapChainImageViews.emplace_back(image);
+  }
+
+  /*
   for (size_t i = 0; i < swapchain->getImages().size(); i++) {
     VkImageViewCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -426,9 +207,9 @@ void createImageViews() {
     createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
     createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 
-    // Tell Vulkan we only need a single MIP level, MIP0, because
-    // we don't care about MIP levels for the final rendered image that we
-    // are going to display to the user
+    // Tell Vulkan there is only a single MIP level, MIP0, because
+    // the final rendered image that we are going to display to the user
+    // only has a single image
     createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     createInfo.subresourceRange.baseMipLevel = 0;
     createInfo.subresourceRange.levelCount = 1;
@@ -447,6 +228,7 @@ void createImageViews() {
       throw std::runtime_error("failed to create image views!");
     }
   }
+  */
 }
 
 static std::vector<char> readBinaryFile(const std::string &filename) {
@@ -898,13 +680,9 @@ void cleanupSwapChain() {
   vkDestroyPipelineLayout(deviceCpp->getVkDevice(), pipelineLayout, nullptr);
   vkDestroyRenderPass(deviceCpp->getVkDevice(), renderPass, nullptr);
 
-  for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-    vkDestroyImageView(deviceCpp->getVkDevice(),
-                       swapChainImageViews[i],
-                       nullptr);
-  }
+  // Delete all the swapchain image views
+  swapChainImageViews.clear();
 
-  //vkDestroySwapchainKHR(deviceCpp->getVkDevice(), swapChain, nullptr);
   delete swapchain;
 }
 
@@ -1082,7 +860,7 @@ void cleanup() {
 
   vkDestroyCommandPool(deviceCpp->getVkDevice(), commandPool, nullptr);
 
-  delete deviceCpp;  // vkDestroyDevice(deviceCpp->getVkDevice(), nullptr);
+  delete deviceCpp;
 
   vkDestroySurfaceKHR(instanceCpp->getInstance(), surface, nullptr);
 

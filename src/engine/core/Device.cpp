@@ -168,6 +168,13 @@ VkPhysicalDeviceProperties PhysicalDevice::getProperties() const {
   return deviceProperties;
 }
 
+VkPhysicalDeviceFeatures PhysicalDevice::getFeatures() const {
+  VkPhysicalDeviceFeatures deviceFeatures;
+  vkGetPhysicalDeviceFeatures(device_, &deviceFeatures);
+
+  return deviceFeatures;
+}
+
 std::vector<QueueFamily> PhysicalDevice::getQueueFamilies() const {
   return queueFamilies_;
 }

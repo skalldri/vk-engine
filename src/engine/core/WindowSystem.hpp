@@ -4,8 +4,7 @@
 #include <engine/core/Instance.hpp>
 
 class IWindowSystem {
-public:
-  
+public:  
   /**
    * @brief Queries the window system to see if the application should exit.
    * The window system might indicate this to the application if, for example, 

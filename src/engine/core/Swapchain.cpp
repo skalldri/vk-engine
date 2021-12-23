@@ -101,7 +101,7 @@ Swapchain::Swapchain(const LogicalDevice &device,
   createInfo.imageFormat = surfaceFormat.format;
   createInfo.imageColorSpace = surfaceFormat.colorSpace;
   createInfo.imageExtent = extent;
-  createInfo.imageArrayLayers = 1; // Likely change this when doing VR
+  createInfo.imageArrayLayers = 1;  // Likely change this when doing VR
   createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
   std::set<uint32_t> uniqueIndices;
@@ -137,7 +137,9 @@ Swapchain::Swapchain(const LogicalDevice &device,
       LOG_W("\tFamily {}", index);
     }
   } else {
-    LOG_I("Using exclusive image sharing mode for swapchain: expect optimal performance");
+    LOG_I(
+        "Using exclusive image sharing mode for swapchain: expect optimal "
+        "performance");
     createInfo.imageSharingMode =
         VK_SHARING_MODE_EXCLUSIVE;             // Best performance
     createInfo.queueFamilyIndexCount = 0;      // Optional
@@ -169,16 +171,25 @@ Swapchain::Swapchain(const LogicalDevice &device,
     LOG_F("failed to create swap chain!");
   }
 
+  std::vector<VkImage> vkImages;
+
   // Retrieve the images from the swapchain
-  vkGetSwapchainImagesKHR(device_,
-                          swapchain_,
-                          &imageCount,
-                          nullptr);
-  images_.resize(imageCount);
-  vkGetSwapchainImagesKHR(device_,
-                          swapchain_,
-                          &imageCount,
-                          images_.data());
+  vkGetSwapchainImagesKHR(device_, swapchain_, &imageCount, nullptr);
+
+  vkImages.resize(imageCount);
+
+  vkGetSwapchainImagesKHR(device_, swapchain_, &imageCount, vkImages.data());
+
+  for (auto &i : vkImages) {
+    images_.push_back(std::move(Image(
+        device_,
+        i,
+        1, /* num MIP levels, images from swapchains always have a single mip
+              level */
+        surfaceFormat.format,
+        extent,
+        true /* presentable, since this comes from a swapchain */)));
+  }
 
   // Track the configuration of the swapchain
   format_ = surfaceFormat.format;

@@ -6,6 +6,7 @@ target_sources(
     PRIVATE
         ShaderModule.cpp
         Instance.cpp
+        Image.cpp
         Device.cpp
         Swapchain.cpp)
 

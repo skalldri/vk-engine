@@ -80,6 +80,8 @@ class PhysicalDevice {
 
   VkPhysicalDeviceProperties getProperties() const;
 
+  VkPhysicalDeviceFeatures getFeatures() const;
+
   // TODO: REMOVE THIS, ONLY FOR INTEGRGATION WITH ORIGINAL ENGINE
   VkPhysicalDevice getVkPhysicalDevice() const {return device_; }
 
