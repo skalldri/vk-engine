@@ -175,7 +175,6 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
 }
 
 void createSwapChain(const LogicalDevice& device) {
-
   swapchain = new Swapchain(device, surface, {graphicsQueueRequest, presentationQueueRequest});
 }
 
@@ -184,51 +183,9 @@ void createSurface() {
 }
 
 void createImageViews() {
-  // swapChainImageViews.resize(swapchain->getImages().size());
-
   for (auto& image : swapchain->getImages()) {
     swapChainImageViews.emplace_back(image);
   }
-
-  /*
-  for (size_t i = 0; i < swapchain->getImages().size(); i++) {
-    VkImageViewCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    createInfo.image = swapchain->getImages()[i];
-    createInfo.viewType =
-        VK_IMAGE_VIEW_TYPE_2D;  // Treat the image as a 2D array of pixels
-    createInfo.format =
-        swapchain->getFormat();  // Match the format of the underlying view
-
-    // Allows us to swizzle one color channel into another, but for now
-    // we just stick with the default
-    createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-    // Tell Vulkan there is only a single MIP level, MIP0, because
-    // the final rendered image that we are going to display to the user
-    // only has a single image
-    createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    createInfo.subresourceRange.baseMipLevel = 0;
-    createInfo.subresourceRange.levelCount = 1;
-
-    // Since this is currently a 2D application, we only need one layer per
-    // VkImage but for a VR application, we might request a VkImage with
-    // multiple layers, and then bind each layer of a single VkImage into
-    // multiple VkImageViews
-    createInfo.subresourceRange.baseArrayLayer = 0;
-    createInfo.subresourceRange.layerCount = 1;
-
-    if (vkCreateImageView(deviceCpp->getVkDevice(),
-                          &createInfo,
-                          nullptr,
-                          &swapChainImageViews[i]) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create image views!");
-    }
-  }
-  */
 }
 
 static std::vector<char> readBinaryFile(const std::string &filename) {
