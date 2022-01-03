@@ -5,8 +5,15 @@
 
 #include <vulkan/vulkan.h>
 
+#include <list>
+
 class Subpass;
 class Attachment;
+class Framebuffer;
+
+// Type that is used while constructing a Framebuffer instance that describes
+// which attachment an ImageView should be bound for
+using FramebufferBinding = std::pair<const Attachment&, const ImageView&>;
 
 /**
  * @brief The RenderPass class. This is where a lot of the magic happens.
@@ -31,11 +38,14 @@ class Attachment;
  * RenderPasses have a fixed resolution. All SubPasses within a RenderPass must have the same resolution.
  */
 class RenderPass {
+
  public:
   RenderPass(RenderPass& other) = delete;
   RenderPass() = delete;
 
   RenderPass(const LogicalDevice& device, uint32_t width, uint32_t height);
+
+  ~RenderPass();
 
   /**
    * @brief Create a Attachment that is compatible / bound to the specified ImageView
@@ -43,7 +53,7 @@ class RenderPass {
    * @param imageView 
    * @return const Attachment& 
    */
-  const Attachment& createAttachment(const ImageView& imageView);
+  const Attachment& createAttachment(VkFormat format);
 
   /**
    * @brief Create a Subpass within this Render pass. Ordering happens later
@@ -52,7 +62,9 @@ class RenderPass {
    * @return const SubPass& 
    */
   // TODO: bind a graphics pipeline to the subpass at this step?
-  const Subpass& createSubpass(std::vector<std::reference_wrapper<const Attachment>> colorAttachments);
+  Subpass& createSubpass(std::vector<std::reference_wrapper<const Attachment>> colorAttachments);
+
+  const Framebuffer& createFramebuffer(std::vector<FramebufferBinding> attachmentBindings);
 
   /**
    * @brief Indicate that we have finished creating the render pass, so
@@ -60,10 +72,27 @@ class RenderPass {
    */
   void finalize();
 
+  bool isFinalized() const { return finalized_; }
+
+  operator VkRenderPass() const { return renderPass_; }
+
+  const LogicalDevice& getDevice() const {  return device_; } 
+
+  size_t getAttachmentCount() const;
+
+  VkExtent2D getExtent() const { return {width_, height_}; }
+
  private:
   const LogicalDevice& device_;
-  std::vector<Subpass> subpasses_;
-  std::vector<Attachment> attachments_;
+
+  // Warning: you MUST use std::list for these elements, since we are
+  // going to add Subpasses, Attachments, and Framebuffers at runtime and
+  // we need all references to always stay valid. This doesn't work with vectors
+  // since they can be reallocated as space is consumed
+  std::list<Subpass> subpasses_;
+  std::list<Attachment> attachments_;
+  std::list<Framebuffer> framebuffers_;
+
   uint32_t width_;
   uint32_t height_;
   bool finalized_ = false;
@@ -92,7 +121,7 @@ class Subpass {
 
   uint32_t getIndex() const { return subpassIndex_; }
 
-  const std::vector<VkSubpassDependency>& getDependencies() { return dependencies_; }
+  const std::vector<VkSubpassDependency>& getDependencies() const { return dependencies_; }
 
   void addStartExternalDependency();
 
@@ -100,8 +129,10 @@ class Subpass {
 
   void dependOn(const Subpass& other);
 
+  bool isParent(const RenderPass& other) const { return other == parent_; }
+
  private:
-  const RenderPass& renderPass_;
+  const RenderPass& parent_;
   uint32_t subpassIndex_;
   std::vector<std::reference_wrapper<const Attachment>> colorAttachments_;
   std::vector<VkAttachmentReference> colorAttachmentReferences_;
@@ -135,16 +166,38 @@ class Subpass {
  */
 class Attachment {
  public:
-  Attachment(const ImageView& imageView, uint32_t index);
+  Attachment(const RenderPass& parent, VkExtent2D extent, VkFormat format, uint32_t index);
 
-  VkFormat getFormat() const { return imageView_.getImage().getFormat(); }
+  VkExtent2D getExtent() const { return extent_; }
 
-  VkExtent2D getExtent() const { return imageView_.getImage().getExtent(); }
+  VkFormat getFormat() const { return format_; }
 
   uint32_t getIndex() const { return attachmentIndex_; } 
 
+  bool isParent(const RenderPass& other) const { return other == parent_; }
+
  private:
-  const ImageView& imageView_; // The image view associated with this attachment
+  const RenderPass& parent_;
   uint32_t attachmentIndex_; // The index of the attachment in the RenderPass attachment list
+  VkExtent2D extent_;
+  VkFormat format_;
 };
 
+class Framebuffer {
+ public:
+  Framebuffer() = delete;
+  Framebuffer(Framebuffer& other) = delete;
+  Framebuffer(Framebuffer&& other);
+
+  Framebuffer(const RenderPass& parent, std::vector<FramebufferBinding> attachmentBindings);
+
+  ~Framebuffer();
+
+  operator VkFramebuffer() const { return framebuffer_; }
+
+  bool isParent(const RenderPass& other) const { return other == parent_; }
+
+ private:
+  const RenderPass& parent_;
+  VkFramebuffer framebuffer_;
+};

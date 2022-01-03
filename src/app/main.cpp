@@ -6,12 +6,10 @@
 #include <array>
 #include <engine/core/Device.hpp>
 #include <engine/core/Instance.hpp>
-#include <engine/core/Swapchain.hpp>
 #include <engine/core/RenderPass.hpp>
+#include <engine/core/Swapchain.hpp>
 #include <engine/utils/to_string.hpp>
-
 #include <engine/win32/GlfwWindowSystem.hpp>
-
 #include <exception>
 #include <fmtlog/Log.hpp>
 #include <fstream>
@@ -21,7 +19,7 @@
 
 using namespace std;
 
-GlfwWindowSystem* windowSystem;
+GlfwWindowSystem *windowSystem;
 
 Instance *instance;
 Swapchain *swapchain;
@@ -50,7 +48,7 @@ QueueFamilyRequest presentationQueueRequest;
 
 VkSurfaceKHR surface;
 
-VkRenderPass renderPass;
+// VkRenderPass renderPass;
 VkPipelineLayout pipelineLayout;
 VkPipeline graphicsPipeline;
 VkCommandPool commandPool;
@@ -61,7 +59,7 @@ std::array<VkFence, MAX_FRAMES_IN_FLIGHT> inFlightFences;
 std::vector<VkFence> imagesInFlight;
 
 std::vector<VkCommandBuffer> commandBuffers;
-std::vector<VkFramebuffer> swapChainFramebuffers;
+std::vector<std::reference_wrapper<const Framebuffer>> swapChainFramebuffers;
 
 std::vector<ImageView> swapChainImageViews;
 
@@ -69,16 +67,14 @@ size_t currentFrame = 0;
 
 bool framebufferResized = false;
 
-void initWindow() {
-  windowSystem = new GlfwWindowSystem();
-}
+void initWindow() { windowSystem = new GlfwWindowSystem(); }
 
 void createInstance() {
   instance = new Instance("Hello Triangle",
-                             {1, 0, 0},  // App Version
-                             enableValidationLayers,
-                             windowSystem->getRequiredVkInstanceExtensions(),
-                             {}  // required layers
+                          {1, 0, 0},  // App Version
+                          enableValidationLayers,
+                          windowSystem->getRequiredVkInstanceExtensions(),
+                          {}  // required layers
   );
 }
 
@@ -108,11 +104,11 @@ bool isDeviceSuitable(const PhysicalDevice &device) {
                         !swapChainSupport.presentModes.empty();
   }
 
-  return hasGraphicsFamily && 
-         hasPresentFamily &&
-         device.getProperties().deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
-         device.getFeatures().geometryShader &&
-         extensionsSupported && swapChainAdequate;
+  return hasGraphicsFamily && hasPresentFamily &&
+         device.getProperties().deviceType ==
+             VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
+         device.getFeatures().geometryShader && extensionsSupported &&
+         swapChainAdequate;
 }
 
 std::optional<PhysicalDevice> pickPhysicalDevice() {
@@ -166,9 +162,9 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
                                   presentationQueueRequest};
 
   device = new LogicalDevice(*instance,
-                                std::move(physicalDevice),
-                                deviceExtensionsCpp,
-                                requests);
+                             std::move(physicalDevice),
+                             deviceExtensionsCpp,
+                             requests);
 
   if (graphicsQueueRequest.getQueue() == VK_NULL_HANDLE ||
       presentationQueueRequest.getQueue() == VK_NULL_HANDLE) {
@@ -176,16 +172,16 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
   }
 }
 
-void createSwapChain(const LogicalDevice& device) {
-  swapchain = new Swapchain(device, surface, {graphicsQueueRequest, presentationQueueRequest});
+void createSwapChain(const LogicalDevice &device) {
+  swapchain = new Swapchain(device,
+                            surface,
+                            {graphicsQueueRequest, presentationQueueRequest});
 }
 
-void createSurface() {
-  surface = windowSystem->createSurface(*instance);
-}
+void createSurface() { surface = windowSystem->createSurface(*instance); }
 
 void createImageViews() {
-  for (auto& image : swapchain->getImages()) {
+  for (auto &image : swapchain->getImages()) {
     swapChainImageViews.emplace_back(image);
   }
 }
@@ -227,51 +223,89 @@ VkShaderModule createShaderModule(const std::vector<char> &shaderSpirv) {
 void createRenderPass() {
   // RenderPass, SubPass, and Attachments are somewhat complicated.
   // - A RenderPass is a high-level container for SubPasses.
-  //   Attachments are globally associated with a RenderPass via the pAttachments array. All
-  //   attachments used in all SubPasses must be described in the global pAttachments array.
+  //   Attachments are globally associated with a RenderPass via the
+  //   pAttachments array. All attachments used in all SubPasses must be
+  //   described in the global pAttachments array.
   //
-  // - A SubPass is a single render operation / render configuration within a RenderPass.
-  //   Dependencies can be expressed between SubPasses (and their Attachements) to allow
-  //   the GPU scheduler to execute work in parallel where possible. Subpasses indicate which
-  //   Attachments they use by referencing the index of an attachment in the global pAttachments array
-  //   of the parent RenderPass, using a VkAttachmentReference object (or multiple of them).
+  // - A SubPass is a single render operation / render configuration within a
+  // RenderPass.
+  //   Dependencies can be expressed between SubPasses (and their Attachements)
+  //   to allow the GPU scheduler to execute work in parallel where possible.
+  //   Subpasses indicate which Attachments they use by referencing the index of
+  //   an attachment in the global pAttachments array of the parent RenderPass,
+  //   using a VkAttachmentReference object (or multiple of them).
   //
-  // - 
+  // -
 
-  //renderPassCpp = new RenderPass(device, );
+  renderPassCpp = new RenderPass(*device,
+                                 swapchain->getExtent().width,
+                                 swapchain->getExtent().height);
+
+  // Our render pass is only going to need a single attachment
+  const Attachment &outputColorAttachment =
+      renderPassCpp->createAttachment(swapchain->getFormat());
+
+  // Create a subpass within the render pass for rendering the player view
+  // Currently this is the only subpass in the render pass
+  Subpass &playerViewSubpass =
+      renderPassCpp->createSubpass({outputColorAttachment});
+
+  // Indicate that this subpass depends on the completion of the previous frame's commmand buffer
+  playerViewSubpass.addStartExternalDependency();
+
+  // Indicate that we're finished building the render pass
+  renderPassCpp->finalize();
+
+  // Create framebuffers for this renderpass using each of the image views we acquired from the
+  // swapchain
+  LOG_D("Creating {} framebuffers", swapChainImageViews.size());
+  for (const auto &swapchainImageView : swapChainImageViews) {
+    swapChainFramebuffers.emplace_back(renderPassCpp->createFramebuffer(
+        {{outputColorAttachment, swapchainImageView}}));
+  }
 
   /*
   // Global attachment description, which is associated with the render pass
   VkAttachmentDescription colorAttachment{};
-  colorAttachment.format = swapchain->getFormat(); // 
+  colorAttachment.format = swapchain->getFormat(); //
   colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
   colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
   colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-  colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // Initial layout of our VkImage is going to be undefined, since this is the default state of all VkImages that come from the Swapchain.
-  colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // Final layout of the color attachment is one that can be presented to the screen
+  colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // Initial layout
+  of our VkImage is going to be undefined, since this is the default state of
+  all VkImages that come from the Swapchain. colorAttachment.finalLayout =
+  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // Final layout of the color attachment is
+  one that can be presented to the screen
 
-  // Attachment reference for a subpass (which references the index of an attachment in the global render pass
+  // Attachment reference for a subpass (which references the index of an
+  attachment in the global render pass
   // attachment list)
   VkAttachmentReference attachmentRef{};
-  attachmentRef.attachment = 0; // Index of the attachment in the render pass attachment list
-  attachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  attachmentRef.attachment = 0; // Index of the attachment in the render pass
+  attachment list attachmentRef.layout =
+  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
   VkSubpassDescription subpass{};
   subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
-  // Color attachments are always write-only, output attachments, from the fragment shader pipeline stage
-  subpass.colorAttachmentCount = 1;
-  subpass.pColorAttachments = &attachmentRef; // Color attachments are always written by this subpass
+  // Color attachments are always write-only, output attachments, from the
+  fragment shader pipeline stage subpass.colorAttachmentCount = 1;
+  subpass.pColorAttachments = &attachmentRef; // Color attachments are always
+  written by this subpass
 
-  // Depth / stencil attachments are always write-only, output attachments, from the ????? shader pipeline stage (probably between the vertex and fragment shaders)
+  // Depth / stencil attachments are always write-only, output attachments, from
+  the ????? shader pipeline stage (probably between the vertex and fragment
+  shaders)
   // subpass.pDepthStencilAttachment = ???;
 
-  // Input attachments are what they say on the box, input attachments, and can be either depth or color
+  // Input attachments are what they say on the box, input attachments, and can
+  be either depth or color
   // subpass.inputAttachmentCount = ????;
-  // subpass.pInputAttachments = ???; // What attachments are read by this subpass
-  
+  // subpass.pInputAttachments = ???; // What attachments are read by this
+  subpass
+
 
   VkRenderPassCreateInfo renderPassInfo{};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -288,14 +322,15 @@ void createRenderPass() {
   // queued before the call to vkCmdBeginRenderPass() are complete.
   dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 
-  // dstSubpass == the first subpass in th pSubpasses array 
+  // dstSubpass == the first subpass in th pSubpasses array
   // It also happens that this is the only subpass we will
   // have for this frame.
   dependency.dstSubpass = 0;
 
   // The "source" of our dependency is, effectively, the rendering pipeline step
-  // where the color attachment gets written. 
-  // We don't want to start rendering the next frame until the color attachment of the 
+  // where the color attachment gets written.
+  // We don't want to start rendering the next frame until the color attachment
+  of the
   // previous frame (VK_SUBPASS_EXTERNAL) has been written.
   dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
   dependency.srcAccessMask = 0;
@@ -476,7 +511,7 @@ void createGraphicsPipeline() {
 
   pipelineInfo.layout = pipelineLayout;
 
-  pipelineInfo.renderPass = renderPass;
+  pipelineInfo.renderPass = *renderPassCpp;
   pipelineInfo.subpass = 0;
 
   // Allows for deriving a new pipeline from an old pipeline
@@ -497,6 +532,7 @@ void createGraphicsPipeline() {
 }
 
 void createFramebuffers() {
+  /*
   fmt::print("Creating {} framebuffers\n", swapChainImageViews.size());
   swapChainFramebuffers.resize(swapChainImageViews.size());
 
@@ -505,7 +541,7 @@ void createFramebuffers() {
 
     VkFramebufferCreateInfo framebufferInfo{};
     framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = renderPass;
+    framebufferInfo.renderPass = *renderPassCpp;
     framebufferInfo.attachmentCount = 1;
     framebufferInfo.pAttachments = attachments;
     framebufferInfo.width = swapchain->getExtent().width;
@@ -519,6 +555,7 @@ void createFramebuffers() {
       throw std::runtime_error("failed to create framebuffer!");
     }
   }
+  */
 }
 
 // Command pools are memory regions from which we allocate a command buffer
@@ -589,8 +626,8 @@ void createCommandBuffers() {
 
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = renderPass;
-    renderPassInfo.framebuffer = swapChainFramebuffers[i];
+    renderPassInfo.renderPass = *renderPassCpp;
+    renderPassInfo.framebuffer = swapChainFramebuffers[i].get();
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = swapchain->getExtent();
 
@@ -658,12 +695,6 @@ void createSyncObjects() {
 }
 
 void cleanupSwapChain() {
-  for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
-    vkDestroyFramebuffer(device->getVkDevice(),
-                         swapChainFramebuffers[i],
-                         nullptr);
-  }
-
   vkFreeCommandBuffers(device->getVkDevice(),
                        commandPool,
                        static_cast<uint32_t>(commandBuffers.size()),
@@ -671,8 +702,13 @@ void cleanupSwapChain() {
 
   vkDestroyPipeline(device->getVkDevice(), graphicsPipeline, nullptr);
   vkDestroyPipelineLayout(device->getVkDevice(), pipelineLayout, nullptr);
-  vkDestroyRenderPass(device->getVkDevice(), renderPass, nullptr);
 
+  // These references are now invalid since we're about to destroy the underlying framebuffers
+  swapChainFramebuffers.clear();
+
+  // Destroy the render pass, all associated framebuffers and attachments
+  delete renderPassCpp;
+  
   // Delete all the swapchain image views
   swapChainImageViews.clear();
 
@@ -680,8 +716,8 @@ void cleanupSwapChain() {
 }
 
 void recreateSwapChain() {
-  // Test if we've been minimized: block 
-  // until we are visible again before trying to regenerate 
+  // Test if we've been minimized: block
+  // until we are visible again before trying to regenerate
   // the swapchain
   while (!windowSystem->isVisible()) {
     windowSystem->waitEvents();
@@ -693,9 +729,11 @@ void recreateSwapChain() {
 
   createSwapChain(*device);
   createImageViews();
+
   createRenderPass();
   createGraphicsPipeline();
   createFramebuffers();
+
   createCommandBuffers();
 }
 
@@ -825,6 +863,7 @@ void initVulkan() {
   createRenderPass();
   createGraphicsPipeline();
   createFramebuffers();
+
   createCommandPool();
   createCommandBuffers();
   createSyncObjects();
