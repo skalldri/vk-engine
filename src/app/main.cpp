@@ -221,22 +221,6 @@ VkShaderModule createShaderModule(const std::vector<char> &shaderSpirv) {
 }
 
 void createRenderPass() {
-  // RenderPass, SubPass, and Attachments are somewhat complicated.
-  // - A RenderPass is a high-level container for SubPasses.
-  //   Attachments are globally associated with a RenderPass via the
-  //   pAttachments array. All attachments used in all SubPasses must be
-  //   described in the global pAttachments array.
-  //
-  // - A SubPass is a single render operation / render configuration within a
-  // RenderPass.
-  //   Dependencies can be expressed between SubPasses (and their Attachements)
-  //   to allow the GPU scheduler to execute work in parallel where possible.
-  //   Subpasses indicate which Attachments they use by referencing the index of
-  //   an attachment in the global pAttachments array of the parent RenderPass,
-  //   using a VkAttachmentReference object (or multiple of them).
-  //
-  // -
-
   renderPassCpp = new RenderPass(*device,
                                  swapchain->getExtent().width,
                                  swapchain->getExtent().height);
@@ -263,94 +247,6 @@ void createRenderPass() {
     swapChainFramebuffers.emplace_back(renderPassCpp->createFramebuffer(
         {{outputColorAttachment, swapchainImageView}}));
   }
-
-  /*
-  // Global attachment description, which is associated with the render pass
-  VkAttachmentDescription colorAttachment{};
-  colorAttachment.format = swapchain->getFormat(); //
-  colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-  colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-  colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-  colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-  colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-  colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // Initial layout
-  of our VkImage is going to be undefined, since this is the default state of
-  all VkImages that come from the Swapchain. colorAttachment.finalLayout =
-  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // Final layout of the color attachment is
-  one that can be presented to the screen
-
-  // Attachment reference for a subpass (which references the index of an
-  attachment in the global render pass
-  // attachment list)
-  VkAttachmentReference attachmentRef{};
-  attachmentRef.attachment = 0; // Index of the attachment in the render pass
-  attachment list attachmentRef.layout =
-  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-  VkSubpassDescription subpass{};
-  subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-
-  // Color attachments are always write-only, output attachments, from the
-  fragment shader pipeline stage subpass.colorAttachmentCount = 1;
-  subpass.pColorAttachments = &attachmentRef; // Color attachments are always
-  written by this subpass
-
-  // Depth / stencil attachments are always write-only, output attachments, from
-  the ????? shader pipeline stage (probably between the vertex and fragment
-  shaders)
-  // subpass.pDepthStencilAttachment = ???;
-
-  // Input attachments are what they say on the box, input attachments, and can
-  be either depth or color
-  // subpass.inputAttachmentCount = ????;
-  // subpass.pInputAttachments = ???; // What attachments are read by this
-  subpass
-
-
-  VkRenderPassCreateInfo renderPassInfo{};
-  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-  renderPassInfo.attachmentCount = 1;
-  renderPassInfo.pAttachments = &colorAttachment;
-  renderPassInfo.subpassCount = 1;
-  renderPassInfo.pSubpasses = &subpass;
-
-  VkSubpassDependency dependency{};
-
-  // VK_SUBPASS_EXTERNAL refers to the implicit subpass that occurrs before our
-  // current renderPass. Effectively, this refers to the previous frame.
-  // To be technical, using VK_SUBPASS_EXTERNAL requires that all commands
-  // queued before the call to vkCmdBeginRenderPass() are complete.
-  dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-
-  // dstSubpass == the first subpass in th pSubpasses array
-  // It also happens that this is the only subpass we will
-  // have for this frame.
-  dependency.dstSubpass = 0;
-
-  // The "source" of our dependency is, effectively, the rendering pipeline step
-  // where the color attachment gets written.
-  // We don't want to start rendering the next frame until the color attachment
-  of the
-  // previous frame (VK_SUBPASS_EXTERNAL) has been written.
-  dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  dependency.srcAccessMask = 0;
-
-  // Destination of our dependency is the color attachment for the current
-  // frame. We are not allowed to write to the color attachment until it's
-  // complete. We are allowed to read it, for example.
-  dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-  renderPassInfo.dependencyCount = 1;
-  renderPassInfo.pDependencies = &dependency;
-
-  if (vkCreateRenderPass(device->getVkDevice(),
-                         &renderPassInfo,
-                         nullptr,
-                         &renderPass) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create render pass!");
-  }
-  */
 }
 
 void createGraphicsPipeline() {
@@ -531,33 +427,6 @@ void createGraphicsPipeline() {
   vkDestroyShaderModule(device->getVkDevice(), vertShaderModule, nullptr);
 }
 
-void createFramebuffers() {
-  /*
-  fmt::print("Creating {} framebuffers\n", swapChainImageViews.size());
-  swapChainFramebuffers.resize(swapChainImageViews.size());
-
-  for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-    VkImageView attachments[] = {swapChainImageViews[i]};
-
-    VkFramebufferCreateInfo framebufferInfo{};
-    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = *renderPassCpp;
-    framebufferInfo.attachmentCount = 1;
-    framebufferInfo.pAttachments = attachments;
-    framebufferInfo.width = swapchain->getExtent().width;
-    framebufferInfo.height = swapchain->getExtent().height;
-    framebufferInfo.layers = 1;
-
-    if (vkCreateFramebuffer(device->getVkDevice(),
-                            &framebufferInfo,
-                            nullptr,
-                            &swapChainFramebuffers[i]) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create framebuffer!");
-    }
-  }
-  */
-}
-
 // Command pools are memory regions from which we allocate a command buffer
 // A command pool can only be associated with a single command queue family
 void createCommandPool() {
@@ -732,7 +601,6 @@ void recreateSwapChain() {
 
   createRenderPass();
   createGraphicsPipeline();
-  createFramebuffers();
 
   createCommandBuffers();
 }
@@ -862,7 +730,6 @@ void initVulkan() {
 
   createRenderPass();
   createGraphicsPipeline();
-  createFramebuffers();
 
   createCommandPool();
   createCommandBuffers();
