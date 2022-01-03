@@ -60,6 +60,8 @@ class ImageView {
 
   ~ImageView();
 
+  const Image& getImage() const { return image_; }
+
   operator VkImageView() const { return imageView_; }
 
  private:

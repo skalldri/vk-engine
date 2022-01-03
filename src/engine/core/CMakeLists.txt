@@ -8,7 +8,8 @@ target_sources(
         Instance.cpp
         Image.cpp
         Device.cpp
-        Swapchain.cpp)
+        Swapchain.cpp
+        RenderPass.cpp)
 
 target_include_directories(
     core

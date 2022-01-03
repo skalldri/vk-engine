@@ -7,6 +7,7 @@
 #include <engine/core/Device.hpp>
 #include <engine/core/Instance.hpp>
 #include <engine/core/Swapchain.hpp>
+#include <engine/core/RenderPass.hpp>
 #include <engine/utils/to_string.hpp>
 
 #include <engine/win32/GlfwWindowSystem.hpp>
@@ -22,8 +23,9 @@ using namespace std;
 
 GlfwWindowSystem* windowSystem;
 
-Instance *instanceCpp;
+Instance *instance;
 Swapchain *swapchain;
+RenderPass *renderPassCpp;
 
 VkDebugUtilsMessengerEXT debugMessenger;
 
@@ -41,7 +43,7 @@ constexpr bool enableValidationLayers = false;
 // TODO: should this match the number of images in the Swapchain?
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
-LogicalDevice *deviceCpp;
+LogicalDevice *device;
 
 QueueFamilyRequest graphicsQueueRequest;
 QueueFamilyRequest presentationQueueRequest;
@@ -72,7 +74,7 @@ void initWindow() {
 }
 
 void createInstance() {
-  instanceCpp = new Instance("Hello Triangle",
+  instance = new Instance("Hello Triangle",
                              {1, 0, 0},  // App Version
                              enableValidationLayers,
                              windowSystem->getRequiredVkInstanceExtensions(),
@@ -115,7 +117,7 @@ bool isDeviceSuitable(const PhysicalDevice &device) {
 
 std::optional<PhysicalDevice> pickPhysicalDevice() {
   std::vector<PhysicalDevice> deviceList =
-      PhysicalDevice::getPhysicalDevices(*instanceCpp, surface);
+      PhysicalDevice::getPhysicalDevices(*instance, surface);
 
   for (auto &device : deviceList) {
     if (isDeviceSuitable(device)) {
@@ -163,7 +165,7 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
   QueueFamilyRequests requests = {graphicsQueueRequest,
                                   presentationQueueRequest};
 
-  deviceCpp = new LogicalDevice(*instanceCpp,
+  device = new LogicalDevice(*instance,
                                 std::move(physicalDevice),
                                 deviceExtensionsCpp,
                                 requests);
@@ -179,7 +181,7 @@ void createSwapChain(const LogicalDevice& device) {
 }
 
 void createSurface() {
-  surface = windowSystem->createSurface(*instanceCpp);
+  surface = windowSystem->createSurface(*instance);
 }
 
 void createImageViews() {
@@ -212,7 +214,7 @@ VkShaderModule createShaderModule(const std::vector<char> &shaderSpirv) {
   createInfo.pCode = reinterpret_cast<const uint32_t *>(shaderSpirv.data());
 
   VkShaderModule shaderModule;
-  if (vkCreateShaderModule(deviceCpp->getVkDevice(),
+  if (vkCreateShaderModule(device->getVkDevice(),
                            &createInfo,
                            nullptr,
                            &shaderModule) != VK_SUCCESS) {
@@ -223,24 +225,53 @@ VkShaderModule createShaderModule(const std::vector<char> &shaderSpirv) {
 }
 
 void createRenderPass() {
+  // RenderPass, SubPass, and Attachments are somewhat complicated.
+  // - A RenderPass is a high-level container for SubPasses.
+  //   Attachments are globally associated with a RenderPass via the pAttachments array. All
+  //   attachments used in all SubPasses must be described in the global pAttachments array.
+  //
+  // - A SubPass is a single render operation / render configuration within a RenderPass.
+  //   Dependencies can be expressed between SubPasses (and their Attachements) to allow
+  //   the GPU scheduler to execute work in parallel where possible. Subpasses indicate which
+  //   Attachments they use by referencing the index of an attachment in the global pAttachments array
+  //   of the parent RenderPass, using a VkAttachmentReference object (or multiple of them).
+  //
+  // - 
+
+  //renderPassCpp = new RenderPass(device, );
+
+  /*
+  // Global attachment description, which is associated with the render pass
   VkAttachmentDescription colorAttachment{};
-  colorAttachment.format = swapchain->getFormat();
+  colorAttachment.format = swapchain->getFormat(); // 
   colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
   colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
   colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-  colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+  colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // Initial layout of our VkImage is going to be undefined, since this is the default state of all VkImages that come from the Swapchain.
+  colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // Final layout of the color attachment is one that can be presented to the screen
 
-  VkAttachmentReference colorAttachmentRef{};
-  colorAttachmentRef.attachment = 0;
-  colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  // Attachment reference for a subpass (which references the index of an attachment in the global render pass
+  // attachment list)
+  VkAttachmentReference attachmentRef{};
+  attachmentRef.attachment = 0; // Index of the attachment in the render pass attachment list
+  attachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
   VkSubpassDescription subpass{};
   subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+  // Color attachments are always write-only, output attachments, from the fragment shader pipeline stage
   subpass.colorAttachmentCount = 1;
-  subpass.pColorAttachments = &colorAttachmentRef;
+  subpass.pColorAttachments = &attachmentRef; // Color attachments are always written by this subpass
+
+  // Depth / stencil attachments are always write-only, output attachments, from the ????? shader pipeline stage (probably between the vertex and fragment shaders)
+  // subpass.pDepthStencilAttachment = ???;
+
+  // Input attachments are what they say on the box, input attachments, and can be either depth or color
+  // subpass.inputAttachmentCount = ????;
+  // subpass.pInputAttachments = ???; // What attachments are read by this subpass
+  
 
   VkRenderPassCreateInfo renderPassInfo{};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -252,21 +283,25 @@ void createRenderPass() {
   VkSubpassDependency dependency{};
 
   // VK_SUBPASS_EXTERNAL refers to the implicit subpass that occurrs before our
-  // current renderPass. Effectively, this refers to the previous frame
+  // current renderPass. Effectively, this refers to the previous frame.
+  // To be technical, using VK_SUBPASS_EXTERNAL requires that all commands
+  // queued before the call to vkCmdBeginRenderPass() are complete.
   dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 
-  // dstSubpass == our current renderPass (which is the only subpass we will
-  // have for this frame)
+  // dstSubpass == the first subpass in th pSubpasses array 
+  // It also happens that this is the only subpass we will
+  // have for this frame.
   dependency.dstSubpass = 0;
 
-  // The "source" of our dependency is, effectively, the color attachment of the
-  // previous frame. we can't write to the color attachment until the previous
-  // frame has been scanned out
+  // The "source" of our dependency is, effectively, the rendering pipeline step
+  // where the color attachment gets written. 
+  // We don't want to start rendering the next frame until the color attachment of the 
+  // previous frame (VK_SUBPASS_EXTERNAL) has been written.
   dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
   dependency.srcAccessMask = 0;
 
   // Destination of our dependency is the color attachment for the current
-  // frame. And we are not allowed to write to the color attachment until it's
+  // frame. We are not allowed to write to the color attachment until it's
   // complete. We are allowed to read it, for example.
   dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
   dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -274,12 +309,13 @@ void createRenderPass() {
   renderPassInfo.dependencyCount = 1;
   renderPassInfo.pDependencies = &dependency;
 
-  if (vkCreateRenderPass(deviceCpp->getVkDevice(),
+  if (vkCreateRenderPass(device->getVkDevice(),
                          &renderPassInfo,
                          nullptr,
                          &renderPass) != VK_SUCCESS) {
     throw std::runtime_error("failed to create render pass!");
   }
+  */
 }
 
 void createGraphicsPipeline() {
@@ -418,7 +454,7 @@ void createGraphicsPipeline() {
   pipelineLayoutInfo.pushConstantRangeCount = 0;     // Optional
   pipelineLayoutInfo.pPushConstantRanges = nullptr;  // Optional
 
-  if (vkCreatePipelineLayout(deviceCpp->getVkDevice(),
+  if (vkCreatePipelineLayout(device->getVkDevice(),
                              &pipelineLayoutInfo,
                              nullptr,
                              &pipelineLayout) != VK_SUCCESS) {
@@ -447,7 +483,7 @@ void createGraphicsPipeline() {
   pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;  // Optional
   pipelineInfo.basePipelineIndex = -1;               // Optional
 
-  if (vkCreateGraphicsPipelines(deviceCpp->getVkDevice(),
+  if (vkCreateGraphicsPipelines(device->getVkDevice(),
                                 VK_NULL_HANDLE,
                                 1,
                                 &pipelineInfo,
@@ -456,8 +492,8 @@ void createGraphicsPipeline() {
     throw std::runtime_error("failed to create graphics pipeline!");
   }
 
-  vkDestroyShaderModule(deviceCpp->getVkDevice(), fragShaderModule, nullptr);
-  vkDestroyShaderModule(deviceCpp->getVkDevice(), vertShaderModule, nullptr);
+  vkDestroyShaderModule(device->getVkDevice(), fragShaderModule, nullptr);
+  vkDestroyShaderModule(device->getVkDevice(), vertShaderModule, nullptr);
 }
 
 void createFramebuffers() {
@@ -476,7 +512,7 @@ void createFramebuffers() {
     framebufferInfo.height = swapchain->getExtent().height;
     framebufferInfo.layers = 1;
 
-    if (vkCreateFramebuffer(deviceCpp->getVkDevice(),
+    if (vkCreateFramebuffer(device->getVkDevice(),
                             &framebufferInfo,
                             nullptr,
                             &swapChainFramebuffers[i]) != VK_SUCCESS) {
@@ -499,7 +535,7 @@ void createCommandPool() {
                        // command buffers to be rerecorded individually, without
                        // this flag they all have to be reset together
 
-  if (vkCreateCommandPool(deviceCpp->getVkDevice(),
+  if (vkCreateCommandPool(device->getVkDevice(),
                           &poolInfo,
                           nullptr,
                           &commandPool) != VK_SUCCESS) {
@@ -526,7 +562,7 @@ void createCommandBuffers() {
 
   allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-  if (vkAllocateCommandBuffers(deviceCpp->getVkDevice(),
+  if (vkAllocateCommandBuffers(device->getVkDevice(),
                                &allocInfo,
                                commandBuffers.data()) != VK_SUCCESS) {
     throw std::runtime_error("failed to allocate command buffers!");
@@ -604,15 +640,15 @@ void createSyncObjects() {
                                      // we don't stall
 
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    if (vkCreateSemaphore(deviceCpp->getVkDevice(),
+    if (vkCreateSemaphore(device->getVkDevice(),
                           &semaphoreInfo,
                           nullptr,
                           &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-        vkCreateSemaphore(deviceCpp->getVkDevice(),
+        vkCreateSemaphore(device->getVkDevice(),
                           &semaphoreInfo,
                           nullptr,
                           &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-        vkCreateFence(deviceCpp->getVkDevice(),
+        vkCreateFence(device->getVkDevice(),
                       &fenceInfo,
                       nullptr,
                       &inFlightFences[i]) != VK_SUCCESS) {
@@ -623,19 +659,19 @@ void createSyncObjects() {
 
 void cleanupSwapChain() {
   for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
-    vkDestroyFramebuffer(deviceCpp->getVkDevice(),
+    vkDestroyFramebuffer(device->getVkDevice(),
                          swapChainFramebuffers[i],
                          nullptr);
   }
 
-  vkFreeCommandBuffers(deviceCpp->getVkDevice(),
+  vkFreeCommandBuffers(device->getVkDevice(),
                        commandPool,
                        static_cast<uint32_t>(commandBuffers.size()),
                        commandBuffers.data());
 
-  vkDestroyPipeline(deviceCpp->getVkDevice(), graphicsPipeline, nullptr);
-  vkDestroyPipelineLayout(deviceCpp->getVkDevice(), pipelineLayout, nullptr);
-  vkDestroyRenderPass(deviceCpp->getVkDevice(), renderPass, nullptr);
+  vkDestroyPipeline(device->getVkDevice(), graphicsPipeline, nullptr);
+  vkDestroyPipelineLayout(device->getVkDevice(), pipelineLayout, nullptr);
+  vkDestroyRenderPass(device->getVkDevice(), renderPass, nullptr);
 
   // Delete all the swapchain image views
   swapChainImageViews.clear();
@@ -651,11 +687,11 @@ void recreateSwapChain() {
     windowSystem->waitEvents();
   }
 
-  vkDeviceWaitIdle(deviceCpp->getVkDevice());
+  vkDeviceWaitIdle(device->getVkDevice());
 
   cleanupSwapChain();
 
-  createSwapChain(*deviceCpp);
+  createSwapChain(*device);
   createImageViews();
   createRenderPass();
   createGraphicsPipeline();
@@ -665,7 +701,7 @@ void recreateSwapChain() {
 
 void drawFrame() {
   // Wait for this command buffer (and other things) to be free
-  vkWaitForFences(deviceCpp->getVkDevice(),
+  vkWaitForFences(device->getVkDevice(),
                   1,
                   &inFlightFences[currentFrame],
                   VK_TRUE,
@@ -676,7 +712,7 @@ void drawFrame() {
   // Signal the imageAvailableSemaphore when imageIndex image is ready to be
   // written to Note: imageAvailableSemaphore may only exist in GPU-space
   VkResult result =
-      vkAcquireNextImageKHR(deviceCpp->getVkDevice(),
+      vkAcquireNextImageKHR(device->getVkDevice(),
                             *swapchain,
                             UINT64_MAX,
                             imageAvailableSemaphores[currentFrame],
@@ -693,7 +729,7 @@ void drawFrame() {
   // Check if a previous frame is using this image (i.e. there is its fence to
   // wait on)
   if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
-    vkWaitForFences(deviceCpp->getVkDevice(),
+    vkWaitForFences(device->getVkDevice(),
                     1,
                     &imagesInFlight[imageIndex],
                     VK_TRUE,
@@ -731,7 +767,7 @@ void drawFrame() {
 
   // Reset the fence for this frame: this un-signals the fence, so other callers
   // will have to wait
-  vkResetFences(deviceCpp->getVkDevice(), 1, &inFlightFences[currentFrame]);
+  vkResetFences(device->getVkDevice(), 1, &inFlightFences[currentFrame]);
 
   // vkQueueSubmit will raise inFlightFences[currentFrame] when this set of
   // commands has finished rendering
@@ -782,9 +818,10 @@ void initVulkan() {
 
   createLogicalDevice(std::move(physicalDevice.value()));
 
-  createSwapChain(*deviceCpp);
+  createSwapChain(*device);
 
   createImageViews();
+
   createRenderPass();
   createGraphicsPipeline();
   createFramebuffers();
@@ -799,29 +836,29 @@ void mainLoop() {
     drawFrame();
   }
 
-  vkDeviceWaitIdle(deviceCpp->getVkDevice());
+  vkDeviceWaitIdle(device->getVkDevice());
 }
 
 void cleanup() {
   cleanupSwapChain();
 
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    vkDestroySemaphore(deviceCpp->getVkDevice(),
+    vkDestroySemaphore(device->getVkDevice(),
                        renderFinishedSemaphores[i],
                        nullptr);
-    vkDestroySemaphore(deviceCpp->getVkDevice(),
+    vkDestroySemaphore(device->getVkDevice(),
                        imageAvailableSemaphores[i],
                        nullptr);
-    vkDestroyFence(deviceCpp->getVkDevice(), inFlightFences[i], nullptr);
+    vkDestroyFence(device->getVkDevice(), inFlightFences[i], nullptr);
   }
 
-  vkDestroyCommandPool(deviceCpp->getVkDevice(), commandPool, nullptr);
+  vkDestroyCommandPool(device->getVkDevice(), commandPool, nullptr);
 
-  delete deviceCpp;
+  delete device;
 
-  vkDestroySurfaceKHR(instanceCpp->getInstance(), surface, nullptr);
+  vkDestroySurfaceKHR(instance->getInstance(), surface, nullptr);
 
-  delete instanceCpp;
+  delete instance;
 
   delete windowSystem;
 }
