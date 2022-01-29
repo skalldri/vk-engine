@@ -4,12 +4,18 @@
 #include <CLI/Config.hpp>
 #include <CLI/Formatter.hpp>
 #include <array>
+
+// Core engine stuff
+#include <engine/core/CommandPool.hpp>
 #include <engine/core/Device.hpp>
 #include <engine/core/Instance.hpp>
 #include <engine/core/RenderPass.hpp>
 #include <engine/core/Swapchain.hpp>
 #include <engine/utils/to_string.hpp>
+
+// Platform specific code
 #include <engine/win32/GlfwWindowSystem.hpp>
+
 #include <exception>
 #include <fmtlog/Log.hpp>
 #include <fstream>
@@ -48,10 +54,11 @@ QueueFamilyRequest presentationQueueRequest;
 
 VkSurfaceKHR surface;
 
-// VkRenderPass renderPass;
 VkPipelineLayout pipelineLayout;
 VkPipeline graphicsPipeline;
-VkCommandPool commandPool;
+
+CommandPool* commandPool;
+// VkCommandPool commandPool;
 
 std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> imageAvailableSemaphores;
 std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> renderFinishedSemaphores;
@@ -430,23 +437,8 @@ void createGraphicsPipeline() {
 // Command pools are memory regions from which we allocate a command buffer
 // A command pool can only be associated with a single command queue family
 void createCommandPool() {
-  VkCommandPoolCreateInfo poolInfo{};
-  poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-  poolInfo.queueFamilyIndex = graphicsQueueRequest.family.index;
-  poolInfo.flags = 0;  // Optional.
-                       // VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, Hint that
-                       // command buffers are rerecorded with new commands very
-                       // often (may change memory allocation behavior)
-                       // VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT: Allow
-                       // command buffers to be rerecorded individually, without
-                       // this flag they all have to be reset together
-
-  if (vkCreateCommandPool(device->getVkDevice(),
-                          &poolInfo,
-                          nullptr,
-                          &commandPool) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create command pool!");
-  }
+  // Create a command pool on the graphics queue
+  commandPool = new CommandPool(*device, graphicsQueueRequest);
 }
 
 void createCommandBuffers() {
@@ -455,7 +447,7 @@ void createCommandBuffers() {
 
   VkCommandBufferAllocateInfo allocInfo{};
   allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocInfo.commandPool = commandPool;
+  allocInfo.commandPool = *commandPool;
   allocInfo.level =
       VK_COMMAND_BUFFER_LEVEL_PRIMARY;  // VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can
                                         // be submitted to a queue for
@@ -565,7 +557,7 @@ void createSyncObjects() {
 
 void cleanupSwapChain() {
   vkFreeCommandBuffers(device->getVkDevice(),
-                       commandPool,
+                       *commandPool,
                        static_cast<uint32_t>(commandBuffers.size()),
                        commandBuffers.data());
 
@@ -729,9 +721,11 @@ void initVulkan() {
   createImageViews();
 
   createRenderPass();
+
   createGraphicsPipeline();
 
   createCommandPool();
+
   createCommandBuffers();
   createSyncObjects();
 }
@@ -758,7 +752,7 @@ void cleanup() {
     vkDestroyFence(device->getVkDevice(), inFlightFences[i], nullptr);
   }
 
-  vkDestroyCommandPool(device->getVkDevice(), commandPool, nullptr);
+  delete commandPool;
 
   delete device;
 

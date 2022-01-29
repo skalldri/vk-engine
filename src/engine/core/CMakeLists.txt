@@ -4,10 +4,11 @@ add_library(core STATIC)
 target_sources(
     core
     PRIVATE
-        ShaderModule.cpp
-        Instance.cpp
-        Image.cpp
+        CommandPool.cpp
         Device.cpp
+        Image.cpp
+        Instance.cpp
+        ShaderModule.cpp
         Swapchain.cpp
         RenderPass.cpp)
 
