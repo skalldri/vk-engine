@@ -131,6 +131,8 @@ class Subpass {
 
   bool isParent(const RenderPass& other) const { return other == parent_; }
 
+  const RenderPass& parent() { return parent_; }
+
  private:
   const RenderPass& parent_;
   uint32_t subpassIndex_;

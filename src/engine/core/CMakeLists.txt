@@ -6,6 +6,7 @@ target_sources(
     PRIVATE
         CommandPool.cpp
         Device.cpp
+        GraphicsPipeline.cpp
         Image.cpp
         Instance.cpp
         ShaderModule.cpp

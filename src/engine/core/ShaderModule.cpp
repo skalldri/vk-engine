@@ -9,13 +9,19 @@
 using namespace std;
 using namespace std::filesystem;
 
-ShaderModule::ShaderModule(const path& shaderFile) {
+ShaderModule::ShaderModule(const LogicalDevice& device, const path& shaderFile) : device_(device) {
   // TODO: async?
   shaderBinary_ = readBinaryFile(shaderFile);
+  shaderModule_ = createVkShaderModule(device_, shaderBinary_);
 }
 
-ShaderModule::ShaderModule(const ShaderBinary& shaderContents) {
+ShaderModule::ShaderModule(const LogicalDevice& device, const ShaderBinary& shaderContents) : device_(device) {
   shaderBinary_ = shaderContents;
+  shaderModule_ = createVkShaderModule(device_, shaderBinary_);
+}
+
+ShaderModule::~ShaderModule() {
+  vkDestroyShaderModule(device_, shaderModule_, nullptr);
 }
 
 ShaderBinary ShaderModule::readBinaryFile(const path& shaderFile) {
@@ -62,4 +68,27 @@ VkShaderModule ShaderModule::createVkShaderModule(
   }
 
   return shaderModule;
+}
+
+const VkPipelineVertexInputStateCreateInfo& VertexShaderModule::getVertexShaderBindingDescription() {
+  // Dummy vertex shader input descriptor that indicates we aren't going to
+  // upload anything (since the vertices are compiled in already)
+  vertexShaderInputDescription_.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+  vertexShaderInputDescription_.vertexBindingDescriptionCount = 0;
+  vertexShaderInputDescription_.pVertexBindingDescriptions = nullptr;  // Optional
+  vertexShaderInputDescription_.vertexAttributeDescriptionCount = 0;
+  vertexShaderInputDescription_.pVertexAttributeDescriptions = nullptr;  // Optional
+
+  return vertexShaderInputDescription_;
+}
+
+const VkPipelineInputAssemblyStateCreateInfo& VertexShaderModule::getVertexShaderInputAssembly() {
+  // Describe the kinds of input we're going to load
+  vertexShaderInputAssembly_.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  vertexShaderInputAssembly_.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  vertexShaderInputAssembly_.primitiveRestartEnable = VK_FALSE;
+
+  return vertexShaderInputAssembly_;
 }

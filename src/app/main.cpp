@@ -11,6 +11,8 @@
 #include <engine/core/Instance.hpp>
 #include <engine/core/RenderPass.hpp>
 #include <engine/core/Swapchain.hpp>
+#include <engine/core/GraphicsPipeline.hpp>
+#include <engine/core/ShaderModule.hpp>
 #include <engine/utils/to_string.hpp>
 
 // Platform specific code
@@ -29,7 +31,8 @@ GlfwWindowSystem *windowSystem;
 
 Instance *instance;
 Swapchain *swapchain;
-RenderPass *renderPassCpp;
+RenderPass *renderPass;
+Subpass *playerViewSubpass;
 
 VkDebugUtilsMessengerEXT debugMessenger;
 
@@ -54,11 +57,12 @@ QueueFamilyRequest presentationQueueRequest;
 
 VkSurfaceKHR surface;
 
-VkPipelineLayout pipelineLayout;
-VkPipeline graphicsPipeline;
+// VkPipelineLayout pipelineLayout;
+// VkPipeline graphicsPipeline;
+GraphicsPipeline* graphicsPipeline;
 
 CommandPool* commandPool;
-// VkCommandPool commandPool;
+
 
 std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> imageAvailableSemaphores;
 std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> renderFinishedSemaphores;
@@ -228,36 +232,41 @@ VkShaderModule createShaderModule(const std::vector<char> &shaderSpirv) {
 }
 
 void createRenderPass() {
-  renderPassCpp = new RenderPass(*device,
+  renderPass = new RenderPass(*device,
                                  swapchain->getExtent().width,
                                  swapchain->getExtent().height);
 
   // Our render pass is only going to need a single attachment
   const Attachment &outputColorAttachment =
-      renderPassCpp->createAttachment(swapchain->getFormat());
+      renderPass->createAttachment(swapchain->getFormat());
 
   // Create a subpass within the render pass for rendering the player view
   // Currently this is the only subpass in the render pass
-  Subpass &playerViewSubpass =
-      renderPassCpp->createSubpass({outputColorAttachment});
+  playerViewSubpass =
+      &renderPass->createSubpass({outputColorAttachment});
 
   // Indicate that this subpass depends on the completion of the previous frame's commmand buffer
-  playerViewSubpass.addStartExternalDependency();
+  playerViewSubpass->addStartExternalDependency();
 
   // Indicate that we're finished building the render pass
-  renderPassCpp->finalize();
+  renderPass->finalize();
 
   // Create framebuffers for this renderpass using each of the image views we acquired from the
   // swapchain
   LOG_D("Creating {} framebuffers", swapChainImageViews.size());
   for (const auto &swapchainImageView : swapChainImageViews) {
-    swapChainFramebuffers.emplace_back(renderPassCpp->createFramebuffer(
+    swapChainFramebuffers.emplace_back(renderPass->createFramebuffer(
         {{outputColorAttachment, swapchainImageView}}));
   }
 }
 
 void createGraphicsPipeline() {
-  auto vertexShader = readBinaryFile("shaders/shader.vert.spv");
+  VertexShaderModule vertexShader(*device, "shaders/shader.vert.spv");
+  ShaderModule fragmentShader(*device, "shaders/shader.frag.spv");
+
+  graphicsPipeline = new GraphicsPipeline(*device, *swapchain, *playerViewSubpass, vertexShader, fragmentShader);
+
+  /*auto vertexShader = readBinaryFile("shaders/shader.vert.spv");
   auto fragmentShader = readBinaryFile("shaders/shader.frag.spv");
 
   // Once we have bound these modules to a graphics pipeline, we don't need to
@@ -414,7 +423,7 @@ void createGraphicsPipeline() {
 
   pipelineInfo.layout = pipelineLayout;
 
-  pipelineInfo.renderPass = *renderPassCpp;
+  pipelineInfo.renderPass = *renderPass;
   pipelineInfo.subpass = 0;
 
   // Allows for deriving a new pipeline from an old pipeline
@@ -431,7 +440,7 @@ void createGraphicsPipeline() {
   }
 
   vkDestroyShaderModule(device->getVkDevice(), fragShaderModule, nullptr);
-  vkDestroyShaderModule(device->getVkDevice(), vertShaderModule, nullptr);
+  vkDestroyShaderModule(device->getVkDevice(), vertShaderModule, nullptr);*/
 }
 
 // Command pools are memory regions from which we allocate a command buffer
@@ -487,7 +496,7 @@ void createCommandBuffers() {
 
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = *renderPassCpp;
+    renderPassInfo.renderPass = *renderPass;
     renderPassInfo.framebuffer = swapChainFramebuffers[i].get();
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = swapchain->getExtent();
@@ -505,7 +514,7 @@ void createCommandBuffers() {
     // a compute pipeline)
     vkCmdBindPipeline(commandBuffers[i],
                       VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      graphicsPipeline);
+                      *graphicsPipeline);
 
     vkCmdDraw(commandBuffers[i],
               3,  // Num Vertices to draw
@@ -561,14 +570,16 @@ void cleanupSwapChain() {
                        static_cast<uint32_t>(commandBuffers.size()),
                        commandBuffers.data());
 
-  vkDestroyPipeline(device->getVkDevice(), graphicsPipeline, nullptr);
-  vkDestroyPipelineLayout(device->getVkDevice(), pipelineLayout, nullptr);
+  // vkDestroyPipeline(device->getVkDevice(), graphicsPipeline, nullptr);
+  // vkDestroyPipelineLayout(device->getVkDevice(), pipelineLayout, nullptr);
+
+  delete graphicsPipeline;
 
   // These references are now invalid since we're about to destroy the underlying framebuffers
   swapChainFramebuffers.clear();
 
   // Destroy the render pass, all associated framebuffers and attachments
-  delete renderPassCpp;
+  delete renderPass;
   
   // Delete all the swapchain image views
   swapChainImageViews.clear();
