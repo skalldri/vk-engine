@@ -22,7 +22,7 @@ class GraphicsPipeline {
 
   ~GraphicsPipeline();
 
-  operator VkPipeline() { return graphicsPipeline_; }
+  operator VkPipeline() const { return graphicsPipeline_; }
 
  private:
   const LogicalDevice& device_;

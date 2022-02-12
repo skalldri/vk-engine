@@ -131,7 +131,7 @@ class Subpass {
 
   bool isParent(const RenderPass& other) const { return other == parent_; }
 
-  const RenderPass& parent() { return parent_; }
+  const RenderPass& parent() const { return parent_; }
 
  private:
   const RenderPass& parent_;

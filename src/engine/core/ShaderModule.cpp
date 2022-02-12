@@ -79,6 +79,8 @@ const VkPipelineVertexInputStateCreateInfo& VertexShaderModule::getVertexShaderB
   vertexShaderInputDescription_.pVertexBindingDescriptions = nullptr;  // Optional
   vertexShaderInputDescription_.vertexAttributeDescriptionCount = 0;
   vertexShaderInputDescription_.pVertexAttributeDescriptions = nullptr;  // Optional
+  vertexShaderInputDescription_.flags = 0;
+  vertexShaderInputDescription_.pNext = NULL;
 
   return vertexShaderInputDescription_;
 }
@@ -89,6 +91,8 @@ const VkPipelineInputAssemblyStateCreateInfo& VertexShaderModule::getVertexShade
       VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   vertexShaderInputAssembly_.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
   vertexShaderInputAssembly_.primitiveRestartEnable = VK_FALSE;
+  vertexShaderInputAssembly_.pNext = NULL;
+  vertexShaderInputAssembly_.flags = 0;
 
   return vertexShaderInputAssembly_;
 }
