@@ -11,13 +11,20 @@ target_sources(
         Instance.cpp
         ShaderModule.cpp
         Swapchain.cpp
-        RenderPass.cpp)
+        RenderPass.cpp
+        Sync.cpp)
 
 target_include_directories(
     core
     PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/../../ # Expose the "engine" root folder
+)
+
+target_link_libraries(
+    core
+    PUBLIC
+        Vulkan::Vulkan
 )
 
 target_link_libraries(

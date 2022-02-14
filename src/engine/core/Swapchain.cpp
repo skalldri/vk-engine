@@ -83,6 +83,8 @@ Swapchain::Swapchain(const LogicalDevice &device,
   // Make sure the driver actually supports this many images though...
   if (swapChainSupport.capabilities.maxImageCount > 0 &&
       imageCount > swapChainSupport.capabilities.maxImageCount) {
+    LOG_W("GFX Driver does not support requested swapchain image count: {}", imageCount);
+    LOG_W("Resetting image count to driver maximum: {}", swapChainSupport.capabilities.maxImageCount);
     imageCount = swapChainSupport.capabilities.maxImageCount;
   }
 
@@ -91,6 +93,7 @@ Swapchain::Swapchain(const LogicalDevice &device,
         vkFormatToString(surfaceFormat.format),
         vkColorspaceKHRToString(surfaceFormat.colorSpace));
   LOG_I("\tPresent Mode: {}", vkPresentModeKHRToString(presentMode));
+  LOG_I("\tImages: {}", imageCount);
   LOG_I("\tExtent: {}x{}", extent.width, extent.height);
 
   VkSwapchainCreateInfoKHR createInfo{};

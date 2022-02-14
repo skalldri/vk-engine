@@ -13,6 +13,7 @@
 #include <engine/core/RenderPass.hpp>
 #include <engine/core/ShaderModule.hpp>
 #include <engine/core/Swapchain.hpp>
+#include <engine/core/Sync.hpp>
 #include <engine/utils/to_string.hpp>
 
 // Platform specific code
@@ -59,16 +60,27 @@ VkSurfaceKHR surface;
 GraphicsPipeline *graphicsPipeline;
 CommandPool *commandPool;
 
-std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> imageAvailableSemaphores;
-std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> renderFinishedSemaphores;
-std::array<VkFence, MAX_FRAMES_IN_FLIGHT> inFlightFences;
-std::vector<VkFence> imagesInFlight;
+std::vector<Semaphore> imageAvailableSemaphores;
+std::vector<Semaphore> renderFinishedSemaphores;
+
+std::vector<Fence> inFlightFences;
 
 std::vector<CommandBuffer> commandBuffers;
 std::vector<std::reference_wrapper<const Framebuffer>> swapChainFramebuffers;
 
 std::vector<ImageView> swapChainImageViews;
 
+/**
+ * The system can support up to MAX_FRAMES_IN_FLIGHT simultaneous frames
+ * being processed by the rendering system. Each frame has associated framebuffers for containing
+ * finished rendered content. Frames that have been rendered need to be presented sequentially, 
+ * and we can't overwrite data that's already been produced: we can only wait for it to be consumed.
+ * 
+ * We treat the sequence of frames 
+ * 
+ * This variable tracks
+ * 
+ */
 size_t currentFrame = 0;
 
 bool framebufferResized = false;
@@ -275,37 +287,10 @@ void createCommandPool() {
 
 void createCommandBuffers() {
   // Create a command buffer for each framebuffer in the swapchain
-  // commandBuffers.resize(swapChainFramebuffers.size());
-
   for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
     commandBuffers.emplace_back(commandPool->allocateCommandBuffer());
   }
 
-  /*
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = *commandPool;
-    allocInfo.level =
-        VK_COMMAND_BUFFER_LEVEL_PRIMARY;  // VK_COMMAND_BUFFER_LEVEL_PRIMARY:
-    Can
-                                          // be submitted to a queue for
-                                          // execution, but cannot be called
-    from
-                                          // other command buffers.
-                                          // VK_COMMAND_BUFFER_LEVEL_SECONDARY:
-                                          // Cannot be submitted directly, but
-    can
-                                          // be called from primary command
-                                          // buffers.
-
-    allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
-
-    if (vkAllocateCommandBuffers(device->getVkDevice(),
-                                 &allocInfo,
-                                 commandBuffers.data()) != VK_SUCCESS) {
-      throw std::runtime_error("failed to allocate command buffers!");
-    }
-  */
   // Start command buffer recording
   for (size_t i = 0; i < commandBuffers.size(); i++) {
     commandBuffers[i].begin();
@@ -320,60 +305,9 @@ void createCommandBuffers() {
                            0   // First instance offset
     );
 
+    commandBuffers[i].endRenderPass();
+
     commandBuffers[i].end();
-
-    /*
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags =
-        0;  // VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer
-            // will be rerecorded right after executing it once.
-            // VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT: This is a
-            // secondary command buffer that will be entirely within a single
-            // render pass. VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT: The
-            // command buffer can be resubmitted while it is also already
-            // pending execution.
-    beginInfo.pInheritanceInfo =
-        nullptr;  // Optional, only used for "secondary" command buffers
-
-    if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
-      throw std::runtime_error("failed to begin recording command buffer!");
-    }
-
-    VkRenderPassBeginInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = *renderPass;
-    renderPassInfo.framebuffer = swapChainFramebuffers[i].get();
-    renderPassInfo.renderArea.offset = {0, 0};
-    renderPassInfo.renderArea.extent = swapchain->getExtent();
-
-    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
-
-    // Record this command to the command buffer
-    vkCmdBeginRenderPass(commandBuffers[i],
-                         &renderPassInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
-
-    // Indicate this command should be bound to a graphics pipeline (instead of
-    // a compute pipeline)
-    vkCmdBindPipeline(commandBuffers[i],
-                      VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      *graphicsPipeline);
-
-    vkCmdDraw(commandBuffers[i],
-              3,  // Num Vertices to draw
-              1,  // Instance count
-              0,  // First vertex index offset
-              0   // First instance offset
-    );
-
-    vkCmdEndRenderPass(commandBuffers[i]);
-
-    if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
-      throw std::runtime_error("failed to record command buffer!");
-    }*/
   }
 }
 
@@ -381,42 +315,17 @@ void createSyncObjects() {
   // One fence per swapchain image
   // Initially, no one is using any swapchain images, so we initialize them to a
   // NULL handle
-  imagesInFlight.resize(swapchain->getImages().size(), VK_NULL_HANDLE);
-
-  VkSemaphoreCreateInfo semaphoreInfo{};
-  semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-  VkFenceCreateInfo fenceInfo{};
-  fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-  fenceInfo.flags =
-      VK_FENCE_CREATE_SIGNALED_BIT;  // Create fence in the "signaled" state so
-                                     // we don't stall
+  // imagesInFlight.resize(swapchain->getImages().size(), std::reference_wrapper::);
 
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    if (vkCreateSemaphore(device->getVkDevice(),
-                          &semaphoreInfo,
-                          nullptr,
-                          &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-        vkCreateSemaphore(device->getVkDevice(),
-                          &semaphoreInfo,
-                          nullptr,
-                          &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-        vkCreateFence(device->getVkDevice(),
-                      &fenceInfo,
-                      nullptr,
-                      &inFlightFences[i]) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create semaphores!");
-    }
+    inFlightFences.emplace_back(*device, true /* initially signaled*/);
+    imageAvailableSemaphores.emplace_back(*device);
+    renderFinishedSemaphores.emplace_back(*device);
   }
 }
 
 void cleanupSwapChain() {
   commandBuffers.clear();
-  /*
-  vkFreeCommandBuffers(device,
-                       *commandPool,
-                       static_cast<uint32_t>(commandBuffers.size()),
-                       commandBuffers.data());*/
 
   delete graphicsPipeline;
 
@@ -456,16 +365,13 @@ void recreateSwapChain() {
 
 void drawFrame() {
   // Wait for this command buffer (and other things) to be free
-  vkWaitForFences(device->getVkDevice(),
-                  1,
-                  &inFlightFences[currentFrame],
-                  VK_TRUE,
-                  UINT64_MAX);
+  inFlightFences[currentFrame].wait(); // Wait forever for the current frame to become free
 
   uint32_t imageIndex;
 
-  // Signal the imageAvailableSemaphore when imageIndex image is ready to be
-  // written to Note: imageAvailableSemaphore may only exist in GPU-space
+  // Signals the imageAvailableSemaphore when imageIndex image is ready to be
+  // written to 
+  // Note: imageAvailableSemaphore may only exist in GPU-space
   VkResult result =
       vkAcquireNextImageKHR(device->getVkDevice(),
                             *swapchain,
@@ -474,25 +380,14 @@ void drawFrame() {
                             VK_NULL_HANDLE,
                             &imageIndex);
 
+  // Our swapchain doesn't match the presentation surface anymore: 
+  // recreate the swapchain and skip this frame
   if (result == VK_ERROR_OUT_OF_DATE_KHR) {
     recreateSwapChain();
     return;
   } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
     throw std::runtime_error("failed to acquire swapchain image!");
   }
-
-  // Check if a previous frame is using this image (i.e. there is its fence to
-  // wait on)
-  if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
-    vkWaitForFences(device->getVkDevice(),
-                    1,
-                    &imagesInFlight[imageIndex],
-                    VK_TRUE,
-                    UINT64_MAX);
-  }
-
-  // Mark the image as now being in use by this frame
-  imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
   VkSubmitInfo submitInfo{};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -523,7 +418,7 @@ void drawFrame() {
 
   // Reset the fence for this frame: this un-signals the fence, so other callers
   // will have to wait
-  vkResetFences(device->getVkDevice(), 1, &inFlightFences[currentFrame]);
+  inFlightFences[currentFrame].reset();
 
   // vkQueueSubmit will raise inFlightFences[currentFrame] when this set of
   // commands has finished rendering
@@ -596,15 +491,11 @@ void mainLoop() {
 void cleanup() {
   cleanupSwapChain();
 
-  for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    vkDestroySemaphore(device->getVkDevice(),
-                       renderFinishedSemaphores[i],
-                       nullptr);
-    vkDestroySemaphore(device->getVkDevice(),
-                       imageAvailableSemaphores[i],
-                       nullptr);
-    vkDestroyFence(device->getVkDevice(), inFlightFences[i], nullptr);
-  }
+  renderFinishedSemaphores.clear();
+
+  imageAvailableSemaphores.clear();
+
+  inFlightFences.clear();
 
   delete commandPool;
 
