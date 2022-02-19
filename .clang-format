@@ -14,5 +14,5 @@ Cpp11BracedListStyle: 'true'
 PointerAlignment: Left
 SortIncludes: 'true'
 UseTab: Never
-
+ColumnLimit: 100
 ...
