@@ -468,12 +468,16 @@ void initVulkan() {
   }
 
   createLogicalDevice(std::move(physicalDevice.value()));
-  createSwapChain(*device);
-  createImageViews();
-  createRenderPass();
-  createGraphicsPipeline();
-  createCommandPool();
 
+  createSwapChain(*device);
+
+  createImageViews();
+
+  createRenderPass();
+
+  createGraphicsPipeline();
+
+  createCommandPool();
   createCommandBuffers();
 
   createSyncObjects();

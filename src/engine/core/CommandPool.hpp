@@ -10,6 +10,11 @@ class CommandBuffer;
 
 class CommandPool {
  public:
+  CommandPool() = delete;
+  CommandPool(CommandPool& other) = delete;
+  CommandPool(const CommandPool& other) = delete;
+  
+  CommandPool(CommandPool&& other);
   CommandPool(const LogicalDevice& device, const QueueFamilyRequest& queue);
 
   ~CommandPool();
