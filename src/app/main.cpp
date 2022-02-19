@@ -55,18 +55,22 @@ LogicalDevice *device;
 
 QueueFamilyRequest graphicsQueueRequest;
 QueueFamilyRequest presentationQueueRequest;
+QueueFamilyRequest transferQueueRequest;
 
 VkSurfaceKHR surface;
 
 GraphicsPipeline<Vertex> *graphicsPipeline;
-CommandPool *commandPool;
+CommandPool *graphicsCommandPool;
+CommandPool *transferCommandPool;
 
 std::vector<Semaphore> imageAvailableSemaphores;
 std::vector<Semaphore> renderFinishedSemaphores;
 
 std::vector<Fence> inFlightFences;
 
-std::vector<CommandBuffer> commandBuffers;
+// TODO: find a way to only expose graphics vkCmd and transfer vkCmds to command Buffers with a certain type of queue
+std::vector<CommandBuffer> graphicsCommandBuffers;
+
 std::vector<std::reference_wrapper<const Framebuffer>> swapChainFramebuffers;
 
 std::vector<ImageView> swapChainImageViews;
@@ -91,6 +95,41 @@ Buffer<Vertex> *buffer;
 const std::vector<Vertex> vertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
                                       {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
                                       {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+
+// TODO: avoid pointer usage
+template<class InputType>
+OnDeviceBuffer<InputType>* copyToDevice(const CommandPool& transferCommandPool, const std::vector<InputType>& buffer) {
+  // TODO: would be nice to indicate VK_COMMAND_POOL_CREATE_TRANSIENT_BIT when creating the transferCommandPool
+
+  TransferBuffer<InputType> srcBuffer(transferCommandPool.getDevice(), buffer);
+  OnDeviceBuffer<InputType>* dstBuffer =  new OnDeviceBuffer<InputType>(transferCommandPool.getDevice(), buffer);
+
+  CommandBuffer transferBuffer = transferCommandPool.allocateCommandBuffer();
+
+  transferBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+  transferBuffer.copyBuffer(srcBuffer, *dstBuffer);
+  transferBuffer.end();
+  
+  VkCommandBuffer local = transferBuffer;
+
+  VkSubmitInfo submitInfo{};
+  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submitInfo.commandBufferCount = 1;
+  submitInfo.pCommandBuffers = &local;
+
+  // vkQueueSubmit will raise inFlightFences[currentFrame] when this set of
+  // commands has finished rendering
+  if (vkQueueSubmit(transferCommandPool.getQueue().getQueue(),
+                    1,
+                    &submitInfo,
+                    VK_NULL_HANDLE) != VK_SUCCESS) {
+    LOG_F("failed to submit draw command buffer!");
+  }
+
+  vkQueueWaitIdle(transferCommandPool.getQueue().getQueue());
+
+  return dstBuffer;
+}
 
 void initWindow() { windowSystem = new GlfwWindowSystem(); }
 
@@ -161,22 +200,32 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
   // - TBD
 
   for (auto &family : availableQueueFamilies) {
+    // priority is initialized to -1.0f to indicate it's not been assigned a queue family index yet
     if (graphicsQueueRequest.priority < 0.0f && family.graphics) {
       graphicsQueueRequest.family = family;
       graphicsQueueRequest.priority = 1.0f;
     }
 
+    // priority is initialized to -1.0f to indicate it's not been assigned a queue family index yet
     if (presentationQueueRequest.priority < 0.0f && family.presentation) {
       presentationQueueRequest.family = family;
       presentationQueueRequest.priority = 1.0f;
     }
+
+    // priority is initialized to -1.0f to indicate it's not been assigned a queue family index yet
+    if (transferQueueRequest.priority < 0.0f && family.transfer) {
+      transferQueueRequest.family = family;
+      transferQueueRequest.priority = 1.0f;
+    }
   }
 
-  if (graphicsQueueRequest.priority < 0.0f || presentationQueueRequest.priority < 0.0f) {
-    LOG_F("Failed to pick a graphics and presentation queue");
-  }
+  QueueFamilyRequests requests = {graphicsQueueRequest, presentationQueueRequest, transferQueueRequest};
 
-  QueueFamilyRequests requests = {graphicsQueueRequest, presentationQueueRequest};
+  for (const auto& r : requests) {
+    if (r.get().priority < 0.0f) {
+      LOG_F("Failed to pick a queue family index");
+    }
+  }
 
   device = new LogicalDevice(*instance, std::move(physicalDevice), deviceExtensionsCpp, requests);
 
@@ -268,34 +317,35 @@ void createGraphicsPipeline() {
 // A command pool can only be associated with a single command queue family
 void createCommandPool() {
   // Create a command pool on the graphics queue
-  commandPool = new CommandPool(*device, graphicsQueueRequest);
+  graphicsCommandPool = new CommandPool(*device, graphicsQueueRequest);
+  transferCommandPool = new CommandPool(*device, transferQueueRequest);
 }
 
 void createCommandBuffers() {
   // Create a command buffer for each framebuffer in the swapchain
   for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
-    commandBuffers.emplace_back(commandPool->allocateCommandBuffer());
+    graphicsCommandBuffers.emplace_back(graphicsCommandPool->allocateCommandBuffer());
   }
 
   // Start command buffer recording
-  for (size_t i = 0; i < commandBuffers.size(); i++) {
-    commandBuffers[i].begin();
+  for (size_t i = 0; i < graphicsCommandBuffers.size(); i++) {
+    graphicsCommandBuffers[i].begin();
 
-    commandBuffers[i].beginRenderPass(*renderPass, swapChainFramebuffers[i]);
+    graphicsCommandBuffers[i].beginRenderPass(*renderPass, swapChainFramebuffers[i]);
 
-    commandBuffers[i].bindPipeline(*graphicsPipeline);
+    graphicsCommandBuffers[i].bindPipeline(*graphicsPipeline);
 
-    commandBuffers[i].bindVertexBuffers(*buffer);
+    graphicsCommandBuffers[i].bindVertexBuffers(*buffer);
 
-    commandBuffers[i].draw(buffer->getNumElements(),  // Num Vertices to draw
-                           1,                         // Instance count
-                           0,                         // First vertex index offset
-                           0                          // First instance offset
+    graphicsCommandBuffers[i].draw(buffer->getNumElements(),  // Num Vertices to draw
+                           1,                                 // Instance count
+                           0,                                 // First vertex index offset
+                           0                                  // First instance offset
     );
 
-    commandBuffers[i].endRenderPass();
+    graphicsCommandBuffers[i].endRenderPass();
 
-    commandBuffers[i].end();
+    graphicsCommandBuffers[i].end();
   }
 }
 
@@ -314,7 +364,7 @@ void createSyncObjects() {
 }
 
 void cleanupSwapChain() {
-  commandBuffers.clear();
+  graphicsCommandBuffers.clear();
 
   delete graphicsPipeline;
 
@@ -393,7 +443,7 @@ void drawFrame() {
   submitInfo.pWaitSemaphores = waitSemaphores;
   submitInfo.pWaitDstStageMask = waitStages;
 
-  VkCommandBuffer local = commandBuffers[imageIndex];  // ?????????
+  VkCommandBuffer local = graphicsCommandBuffers[imageIndex];  // ?????????
   submitInfo.commandBufferCount = 1;
   submitInfo.pCommandBuffers = &local;
 
@@ -441,7 +491,9 @@ void drawFrame() {
   currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void createVertexBuffer() { buffer = new Buffer<Vertex>(*device, vertices); }
+void createVertexBuffer() { 
+  buffer = copyToDevice(*transferCommandPool, vertices);
+}
 
 void initVulkan() {
   createInstance();
@@ -459,8 +511,6 @@ void initVulkan() {
 
   createSwapChain(*device);
 
-  createVertexBuffer();
-
   createImageViews();
 
   createRenderPass();
@@ -468,9 +518,12 @@ void initVulkan() {
   createGraphicsPipeline();
 
   createCommandPool();
-  createCommandBuffers();
 
   createSyncObjects();
+
+  createVertexBuffer();
+
+  createCommandBuffers();
 }
 
 void mainLoop() {
@@ -493,7 +546,8 @@ void cleanup() {
 
   inFlightFences.clear();
 
-  delete commandPool;
+  delete graphicsCommandPool;
+  delete transferCommandPool;
 
   delete device;
 

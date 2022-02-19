@@ -24,7 +24,11 @@ class CommandPool {
 
   operator VkCommandPool() const { return commandPool_; }
 
-  CommandBuffer allocateCommandBuffer(VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+  const LogicalDevice& getDevice() const { return device_; }
+
+  const QueueFamilyRequest& getQueue() const { return queue_; }
+
+  CommandBuffer allocateCommandBuffer(VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) const;
 
  private:
   const LogicalDevice& device_;
@@ -66,6 +70,21 @@ class CommandBuffer {
             uint32_t instanceCount,
             uint32_t firstVertexIndex,
             uint32_t firstInstanceIndex);
+
+  template<class InputType>
+  void copyBuffer(const Buffer<InputType>& src, const Buffer<InputType>& dst) {
+
+    if (src.getBufferSize() != dst.getBufferSize()) {
+      LOG_F("Src and dst buffer sizes don't match!");
+    }
+
+    VkBufferCopy copyRegion{};
+    copyRegion.srcOffset = 0; // Optional
+    copyRegion.dstOffset = 0; // Optional
+    copyRegion.size = dst.getBufferSize();
+
+    vkCmdCopyBuffer(commandBuffer_, src, dst, 1 /* num copy regions */, &copyRegion);
+  }
 
   operator VkCommandBuffer() const { return commandBuffer_; }
 

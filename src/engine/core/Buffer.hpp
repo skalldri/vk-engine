@@ -9,14 +9,31 @@ class Buffer {
   Buffer(const Buffer& other) = delete;
   Buffer() = delete;
 
-  Buffer(const LogicalDevice& device, const std::vector<InputType>& bufferContents)
+  Buffer(const LogicalDevice& device,
+         const std::vector<InputType>& bufferContents,
+         VkBufferUsageFlags usageFlags,
+         VkMemoryPropertyFlags propertyFlags,
+         const QueueFamilyRequests sharingQueues = {})
       : device_(device),
-        numElements_(bufferContents.size()) {
+        numElements_(bufferContents.size()),
+        bufferSize_(sizeof(InputType) * bufferContents.size()) {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = sizeof(InputType) * bufferContents.size();
-    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.size = bufferSize_;
+    bufferInfo.usage = usageFlags;  // VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    // Handle potential sharing cases
+    std::vector<uint32_t> sharedFamilyIndices;
+    if (sharingQueues.size() != 0) {
+      sharedFamilyIndices = getUniqueQueueFamilyIndices(sharingQueues);
+
+      if (sharedFamilyIndices.size() > 1) {
+        bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+        bufferInfo.pQueueFamilyIndices = sharedFamilyIndices.data();
+      }
+    }
+
     if (vkCreateBuffer(device_, &bufferInfo, nullptr, &buffer_) != VK_SUCCESS) {
       LOG_F("failed to create VK buffer!");
     }
@@ -27,21 +44,14 @@ class Buffer {
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex =
-        findMemoryType(memRequirements.memoryTypeBits,
-                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, propertyFlags);
+    // VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     if (vkAllocateMemory(device_, &allocInfo, nullptr, &bufferMemory_) != VK_SUCCESS) {
       LOG_F("failed to allocate vertex buffer memory!");
     }
 
     vkBindBufferMemory(device_, buffer_, bufferMemory_, 0 /*offset*/);
-
-    // Copy the buffer contents into GPU space
-    void* data;
-    vkMapMemory(device_, bufferMemory_, 0 /*offset*/, bufferInfo.size, 0 /*flags*/, &data);
-    memcpy(data, bufferContents.data(), (size_t)bufferInfo.size);
-    vkUnmapMemory(device_, bufferMemory_);
   }
 
   ~Buffer() {
@@ -65,11 +75,50 @@ class Buffer {
 
   operator VkBuffer() const { return buffer_; }
 
-  size_t getNumElements() { return numElements_; }
+  size_t getNumElements() const { return numElements_; }
 
- private:
+  size_t getBufferSize() const { return bufferSize_; }
+
+ protected:
   const LogicalDevice& device_;
   VkBuffer buffer_;
   VkDeviceMemory bufferMemory_;
   size_t numElements_;
+  size_t bufferSize_;
+};
+
+// Buffer used to store data in device memory, optimal format
+template <class InputType>
+class OnDeviceBuffer : public Buffer<InputType> {
+ public:
+  OnDeviceBuffer(const LogicalDevice& device,
+                 const std::vector<InputType>& bufferContents,
+                 const QueueFamilyRequests sharingQueues = {})
+      : Buffer<InputType>(
+            device,
+            bufferContents,
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            sharingQueues) {}
+};
+
+// Buffer used to transfer data from host to device memory
+template <class InputType>
+class TransferBuffer : public Buffer<InputType> {
+ public:
+  TransferBuffer(const LogicalDevice& device,
+                 const std::vector<InputType>& bufferContents,
+                 const QueueFamilyRequests sharingQueues = {})
+      : Buffer<InputType>(
+            device,
+            bufferContents,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            sharingQueues) {
+    // Copy the buffer contents into the transfer buffer
+    void* data;
+    vkMapMemory(device_, bufferMemory_, 0 /*offset*/, bufferSize_, 0 /*flags*/, &data);
+    memcpy(data, bufferContents.data(), bufferSize_);
+    vkUnmapMemory(device_, bufferMemory_);
+  }
 };

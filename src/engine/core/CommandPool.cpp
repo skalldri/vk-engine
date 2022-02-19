@@ -29,8 +29,8 @@ CommandPool::~CommandPool() {
   vkDestroyCommandPool(device_.getVkDevice(), commandPool_, nullptr);
 }
 
-CommandBuffer CommandPool::allocateCommandBuffer(VkCommandBufferLevel level) {
-  return std::move(CommandBuffer(device_, *this));
+CommandBuffer CommandPool::allocateCommandBuffer(VkCommandBufferLevel level) const {
+  return std::move(CommandBuffer(device_, *this, level));
 }
 
 CommandBuffer::CommandBuffer(CommandBuffer&& other)

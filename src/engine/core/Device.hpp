@@ -30,7 +30,9 @@ class QueueFamilyRequest {
   QueueFamily family;
   float priority = -1.0f; // Initialize with negative priority to indicate bad state
 
-  const VkQueue& getQueue() {return allocatedQueue; }
+  const VkQueue& getQueue() const {return allocatedQueue; }
+
+  operator const VkQueue&() const { return allocatedQueue; }
 
  protected:
   VkQueue allocatedQueue = VK_NULL_HANDLE;
@@ -45,6 +47,22 @@ struct SwapChainSupportDetails {
   std::vector<VkSurfaceFormatKHR> formats;
   std::vector<VkPresentModeKHR> presentModes;
 };
+
+static std::vector<uint32_t> getUniqueQueueFamilyIndices(const QueueFamilyRequests requests) {
+  // De-duplicate the QueueFamily indexes
+  std::set<uint32_t> families;
+
+  for (auto& request : requests) {
+    families.insert(request.get().family.index);
+  }
+
+  std::vector<uint32_t> familyIndices;
+  for (auto& f : families) {
+    familyIndices.push_back(f);
+  }
+
+  return familyIndices;
+}
 
 /**
  * @brief Represents a physical piece of hardware on the system, capable of

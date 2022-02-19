@@ -27,7 +27,8 @@ std::string getDeviceTypeString(VkPhysicalDeviceType type) {
 }
 
 std::vector<PhysicalDevice> PhysicalDevice::getPhysicalDevices(
-    Instance& instance, std::optional<VkSurfaceKHR> surface) {
+    Instance& instance,
+    std::optional<VkSurfaceKHR> surface) {
   uint32_t deviceCount = 0;
   vkEnumeratePhysicalDevices(instance.getInstance(), &deviceCount, nullptr);
 
@@ -36,17 +37,14 @@ std::vector<PhysicalDevice> PhysicalDevice::getPhysicalDevices(
   }
 
   std::vector<VkPhysicalDevice> vkPhysicalDevices(deviceCount);
-  vkEnumeratePhysicalDevices(instance.getInstance(),
-                             &deviceCount,
-                             vkPhysicalDevices.data());
+  vkEnumeratePhysicalDevices(instance.getInstance(), &deviceCount, vkPhysicalDevices.data());
 
   std::vector<PhysicalDevice> physicalDevices;
   physicalDevices.reserve(deviceCount);
 
   for (size_t i = 0; i < deviceCount; i++) {
     // TODO: resolve issue using emplace_back with private constructors
-    physicalDevices.push_back(
-        std::move(PhysicalDevice(instance, vkPhysicalDevices[i], surface)));
+    physicalDevices.push_back(std::move(PhysicalDevice(instance, vkPhysicalDevices[i], surface)));
   }
 
   return physicalDevices;
@@ -65,7 +63,9 @@ PhysicalDevice::PhysicalDevice(PhysicalDevice&& other)
   init();
 }
 
-PhysicalDevice::PhysicalDevice(Instance& instance, VkPhysicalDevice device, std::optional<VkSurfaceKHR> surface)
+PhysicalDevice::PhysicalDevice(Instance& instance,
+                               VkPhysicalDevice device,
+                               std::optional<VkSurfaceKHR> surface)
     : instance_(instance),
       device_(device),
       surface_(surface) {
@@ -91,10 +91,8 @@ void PhysicalDevice::init() {
   LOG_I("Device Name: {}", deviceProperties_.deviceName);
   LOG_I("Device Type: {}", getDeviceTypeString(deviceProperties_.deviceType));
   LOG_I("Device Features:");
-  LOG_I("\tSupports Geometry Shader:\t{}",
-        deviceFeatures_.geometryShader ? "YES" : "NO");
-  LOG_I("\tSupports Tesselation Shader:\t{}",
-        deviceFeatures_.tessellationShader ? "YES" : "NO");
+  LOG_I("\tSupports Geometry Shader:\t{}", deviceFeatures_.geometryShader ? "YES" : "NO");
+  LOG_I("\tSupports Tesselation Shader:\t{}", deviceFeatures_.tessellationShader ? "YES" : "NO");
 
   // Empty the vector so we can refill it without worrying about this function
   // being called multiple times
@@ -106,9 +104,7 @@ void PhysicalDevice::init() {
   queueFamilies_.resize(queueFamilyCount);
 
   std::vector<VkQueueFamilyProperties> vkQueueFamilies(queueFamilyCount);
-  vkGetPhysicalDeviceQueueFamilyProperties(device_,
-                                           &queueFamilyCount,
-                                           vkQueueFamilies.data());
+  vkGetPhysicalDeviceQueueFamilyProperties(device_, &queueFamilyCount, vkQueueFamilies.data());
 
   for (size_t i = 0; i < queueFamilyCount; i++) {
     // Ensure we can always identify this queue, even if the vector gets sorted
@@ -128,10 +124,24 @@ void PhysicalDevice::init() {
 
     if (vkQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
       queueFamilies_[i].graphics = true;
+
+      // Per the Vulkan spec:
+      // All commands that are allowed on a queue that supports transfer operations are also allowed
+      // on a queue that supports either graphics or compute operations. Thus, if the capabilities
+      // of a queue family include VK_QUEUE_GRAPHICS_BIT or VK_QUEUE_COMPUTE_BIT, then reporting the
+      // VK_QUEUE_TRANSFER_BIT capability separately for that queue family is optional.
+      queueFamilies_[i].transfer = true;
     }
 
     if (vkQueueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT) {
       queueFamilies_[i].compute = true;
+
+      // Per the Vulkan spec:
+      // All commands that are allowed on a queue that supports transfer operations are also allowed
+      // on a queue that supports either graphics or compute operations. Thus, if the capabilities
+      // of a queue family include VK_QUEUE_GRAPHICS_BIT or VK_QUEUE_COMPUTE_BIT, then reporting the
+      // VK_QUEUE_TRANSFER_BIT capability separately for that queue family is optional.
+      queueFamilies_[i].transfer = true;
     }
 
     if (vkQueueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
@@ -175,23 +185,18 @@ VkPhysicalDeviceFeatures PhysicalDevice::getFeatures() const {
   return deviceFeatures;
 }
 
-std::vector<QueueFamily> PhysicalDevice::getQueueFamilies() const {
-  return queueFamilies_;
-}
+std::vector<QueueFamily> PhysicalDevice::getQueueFamilies() const { return queueFamilies_; }
 
-bool PhysicalDevice::hasAllExtensions(
-    const DeviceExtensions& extensions) const {
+bool PhysicalDevice::hasAllExtensions(const DeviceExtensions& extensions) const {
   DeviceExtensions availableExtensions = getDeviceExtensions();
 
   bool hasAll = true;
 
   for (const auto& wantedExtension : extensions) {
-    size_t count = std::count(availableExtensions.begin(),
-                              availableExtensions.end(),
-                              wantedExtension);
+    size_t count =
+        std::count(availableExtensions.begin(), availableExtensions.end(), wantedExtension);
     if (count == 0) {
-      LOG_W("Instance is missing extension '{}', which was requested",
-            wantedExtension);
+      LOG_W("Instance is missing extension '{}', which was requested", wantedExtension);
       hasAll = false;
     }
   }
@@ -201,10 +206,7 @@ bool PhysicalDevice::hasAllExtensions(
 
 DeviceExtensions PhysicalDevice::getDeviceExtensions() const {
   uint32_t extensionCount;
-  vkEnumerateDeviceExtensionProperties(device_,
-                                       nullptr,
-                                       &extensionCount,
-                                       nullptr);
+  vkEnumerateDeviceExtensionProperties(device_, nullptr, &extensionCount, nullptr);
 
   std::vector<VkExtensionProperties> vkAvailableExtensions(extensionCount);
   vkEnumerateDeviceExtensionProperties(device_,
@@ -227,9 +229,7 @@ SwapChainSupportDetails PhysicalDevice::querySwapChainSupport(VkSurfaceKHR surfa
   SwapChainSupportDetails details;
 
   // Get generic swapchain support info
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device_,
-                                            surface,
-                                            &details.capabilities);
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device_, surface, &details.capabilities);
 
   // Get supported texture formats
   uint32_t formatCount;
@@ -237,18 +237,12 @@ SwapChainSupportDetails PhysicalDevice::querySwapChainSupport(VkSurfaceKHR surfa
 
   if (formatCount != 0) {
     details.formats.resize(formatCount);
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device_,
-                                         surface,
-                                         &formatCount,
-                                         details.formats.data());
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device_, surface, &formatCount, details.formats.data());
   }
 
   // Get presentation modes
   uint32_t presentModeCount;
-  vkGetPhysicalDeviceSurfacePresentModesKHR(device_,
-                                            surface,
-                                            &presentModeCount,
-                                            nullptr);
+  vkGetPhysicalDeviceSurfacePresentModesKHR(device_, surface, &presentModeCount, nullptr);
 
   if (presentModeCount != 0) {
     details.presentModes.resize(presentModeCount);
@@ -265,8 +259,7 @@ SwapChainSupportDetails PhysicalDevice::querySwapChainSupport(VkSurfaceKHR surfa
   LOG_D("\tImage Count: Min {}, Max {}",
         details.capabilities.minImageCount,
         details.capabilities.maxImageCount);
-  LOG_D("\tMax Image Array Layers: Max {}",
-        details.capabilities.maxImageArrayLayers);
+  LOG_D("\tMax Image Array Layers: Max {}", details.capabilities.maxImageArrayLayers);
   LOG_D("\tImage Extent: Min {}x{}, Max {}x{}",
         details.capabilities.minImageExtent.width,
         details.capabilities.minImageExtent.height,
@@ -316,7 +309,8 @@ LogicalDevice::LogicalDevice(Instance& instance,
                              PhysicalDevice&& physicalDevice,
                              const DeviceExtensions& requiredExtensions,
                              QueueFamilyRequests& requests)
-    : instance_(instance), physicalDevice_(std::move(physicalDevice)) {
+    : instance_(instance),
+      physicalDevice_(std::move(physicalDevice)) {
   // Step 1: figure out how many different queue families were requested
   // Map QueueFamily Index -> QueueFamilyRequest
   std::multimap<uint32_t, QueueFamilyRequest&> familyRequests;
@@ -417,8 +411,7 @@ LogicalDevice::LogicalDevice(Instance& instance,
   // for the Instance. Lets query the instance to figure out what layers we need
   // to enable.
 
-  std::vector<const char*> vkValidationLayers(
-      instance_.getEnabledLayers().size());
+  std::vector<const char*> vkValidationLayers(instance_.getEnabledLayers().size());
 
   for (size_t i = 0; i < instance_.getEnabledLayers().size(); i++) {
     vkValidationLayers[i] = instance_.getEnabledLayers()[i].c_str();
@@ -427,8 +420,7 @@ LogicalDevice::LogicalDevice(Instance& instance,
   createInfo.enabledLayerCount = vkValidationLayers.size();
   createInfo.ppEnabledLayerNames = vkValidationLayers.data();
 
-  if (vkCreateDevice(physicalDevice_.device_, &createInfo, nullptr, &device_) !=
-      VK_SUCCESS) {
+  if (vkCreateDevice(physicalDevice_.device_, &createInfo, nullptr, &device_) != VK_SUCCESS) {
     LOG_F("failed to create logical device!");
   }
 
@@ -450,7 +442,8 @@ LogicalDevice::LogicalDevice(Instance& instance,
 }
 
 LogicalDevice::LogicalDevice(LogicalDevice&& other)
-    : instance_(other.instance_), physicalDevice_(std::move(other.physicalDevice_)) {
+    : instance_(other.instance_),
+      physicalDevice_(std::move(other.physicalDevice_)) {
   if (device_) {
     vkDestroyDevice(device_, nullptr);
   }
