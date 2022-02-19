@@ -70,6 +70,7 @@ VkShaderModule ShaderModule::createVkShaderModule(
   return shaderModule;
 }
 
+/*
 const VkPipelineVertexInputStateCreateInfo& VertexShaderModule::getVertexShaderBindingDescription() {
   // Dummy vertex shader input descriptor that indicates we aren't going to
   // upload anything (since the vertices are compiled in already)
@@ -96,3 +97,4 @@ const VkPipelineInputAssemblyStateCreateInfo& VertexShaderModule::getVertexShade
 
   return vertexShaderInputAssembly_;
 }
+*/

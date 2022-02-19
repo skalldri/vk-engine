@@ -34,6 +34,7 @@ target_link_libraries(
         fmt::fmt
         Vulkan::Vulkan
         fmtlog
+        glm
 )
 
 target_compile_features(core PUBLIC cxx_std_17)

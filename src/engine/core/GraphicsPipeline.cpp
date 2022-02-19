@@ -3,10 +3,12 @@
 
 #include <vulkan/vulkan.h>
 
+/*
+template<class InputType>
 GraphicsPipeline::GraphicsPipeline(const LogicalDevice& device,
                                    const Swapchain& swapchain,
                                    const Subpass& subpass,
-                                   VertexShaderModule& vertexShader,
+                                   VertexShaderModule<InputType>& vertexShader,
                                    ShaderModule& fragmentShader)
     : device_(device),
       swapchain_(swapchain),
@@ -165,3 +167,4 @@ GraphicsPipeline::~GraphicsPipeline() {
   vkDestroyPipeline(device_, graphicsPipeline_, nullptr);
   vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
 }
+*/

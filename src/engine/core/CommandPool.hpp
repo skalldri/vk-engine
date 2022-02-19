@@ -1,10 +1,13 @@
 #pragma once
 
-#include <engine/core/Device.hpp>
-#include <engine/core/RenderPass.hpp>
-#include <engine/core/GraphicsPipeline.hpp>
-
 #include <vulkan/vulkan.h>
+
+#include <engine/core/Device.hpp>
+#include <engine/core/GraphicsPipeline.hpp>
+#include <engine/core/RenderPass.hpp>
+#include <engine/core/Buffer.hpp>
+
+#include <typeinfo>
 
 class CommandBuffer;
 
@@ -13,7 +16,7 @@ class CommandPool {
   CommandPool() = delete;
   CommandPool(CommandPool& other) = delete;
   CommandPool(const CommandPool& other) = delete;
-  
+
   CommandPool(CommandPool&& other);
   CommandPool(const LogicalDevice& device, const QueueFamilyRequest& queue);
 
@@ -38,7 +41,7 @@ class CommandBuffer {
   CommandBuffer(CommandBuffer&& other);
   ~CommandBuffer();
 
-  // TODO: maybe express the lifetime of the recording using a special "recording" object that 
+  // TODO: maybe express the lifetime of the recording using a special "recording" object that
   // ends the recording when the object goes out of scope?
   void begin(VkCommandBufferUsageFlags flags = 0);
   void end();
@@ -46,9 +49,23 @@ class CommandBuffer {
   void beginRenderPass(const RenderPass& renderPass, const Framebuffer& framebuffer);
   void endRenderPass();
 
-  void bindPipeline(const GraphicsPipeline& pipeline);
+  template <class InputType>
+  void bindPipeline(const GraphicsPipeline<InputType>& pipeline) {
+    vkCmdBindPipeline(commandBuffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+  }
 
-  void draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertexIndex, uint32_t firstInstanceIndex);
+  template <class InputType>
+  void bindVertexBuffers(const Buffer<InputType>& buffer) {
+    // TODO: figure out how to validate that the currently bound pipeline is compatible with this input
+    VkBuffer vertexBuffers[] = {buffer};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(commandBuffer_, 0 /* first binding */, 1 /* num buffers */, vertexBuffers, offsets);
+  }
+
+  void draw(uint32_t vertexCount,
+            uint32_t instanceCount,
+            uint32_t firstVertexIndex,
+            uint32_t firstInstanceIndex);
 
   operator VkCommandBuffer() const { return commandBuffer_; }
 

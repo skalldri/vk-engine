@@ -128,10 +128,6 @@ void CommandBuffer::beginRenderPass(const RenderPass& renderPass,
 
 void CommandBuffer::endRenderPass() { vkCmdEndRenderPass(commandBuffer_); }
 
-void CommandBuffer::bindPipeline(const GraphicsPipeline& pipeline) {
-  vkCmdBindPipeline(commandBuffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-}
-
 void CommandBuffer::draw(uint32_t vertexCount,
                          uint32_t instanceCount,
                          uint32_t firstVertexIndex,

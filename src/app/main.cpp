@@ -6,6 +6,7 @@
 #include <array>
 
 // Core engine stuff
+#include <engine/core/Buffer.hpp>
 #include <engine/core/CommandPool.hpp>
 #include <engine/core/Device.hpp>
 #include <engine/core/GraphicsPipeline.hpp>
@@ -21,6 +22,7 @@
 #include <exception>
 #include <fmtlog/Log.hpp>
 #include <fstream>
+#include <glm/glm.hpp>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -38,8 +40,7 @@ VkDebugUtilsMessengerEXT debugMessenger;
 
 const Layers validationLayers = {"VK_LAYER_KHRONOS_validation"};
 
-const std::vector<std::string> deviceExtensionsCpp = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+const std::vector<std::string> deviceExtensionsCpp = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
 #ifdef DEBUG_BUILD
 constexpr bool enableValidationLayers = true;
@@ -57,7 +58,7 @@ QueueFamilyRequest presentationQueueRequest;
 
 VkSurfaceKHR surface;
 
-GraphicsPipeline *graphicsPipeline;
+GraphicsPipeline<Vertex> *graphicsPipeline;
 CommandPool *commandPool;
 
 std::vector<Semaphore> imageAvailableSemaphores;
@@ -72,18 +73,24 @@ std::vector<ImageView> swapChainImageViews;
 
 /**
  * The system can support up to MAX_FRAMES_IN_FLIGHT simultaneous frames
- * being processed by the rendering system. Each frame has associated framebuffers for containing
- * finished rendered content. Frames that have been rendered need to be presented sequentially, 
- * and we can't overwrite data that's already been produced: we can only wait for it to be consumed.
- * 
- * We treat the sequence of frames 
- * 
+ * being processed by the rendering system. Each frame has associated
+ * framebuffers for containing finished rendered content. Frames that have been
+ * rendered need to be presented sequentially, and we can't overwrite data
+ * that's already been produced: we can only wait for it to be consumed.
+ *
+ * We treat the sequence of frames
+ *
  * This variable tracks
- * 
+ *
  */
 size_t currentFrame = 0;
 
 bool framebufferResized = false;
+
+Buffer<Vertex> *buffer;
+const std::vector<Vertex> vertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+                                      {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+                                      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
 
 void initWindow() { windowSystem = new GlfwWindowSystem(); }
 
@@ -115,23 +122,18 @@ bool isDeviceSuitable(const PhysicalDevice &device) {
   bool swapChainAdequate = false;
 
   if (extensionsSupported) {
-    SwapChainSupportDetails swapChainSupport =
-        device.querySwapChainSupport(surface);
+    SwapChainSupportDetails swapChainSupport = device.querySwapChainSupport(surface);
     // TODO: more explicit swapchain requirements
-    swapChainAdequate = !swapChainSupport.formats.empty() &&
-                        !swapChainSupport.presentModes.empty();
+    swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
   }
 
   return hasGraphicsFamily && hasPresentFamily &&
-         device.getProperties().deviceType ==
-             VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
-         device.getFeatures().geometryShader && extensionsSupported &&
-         swapChainAdequate;
+         device.getProperties().deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
+         device.getFeatures().geometryShader && extensionsSupported && swapChainAdequate;
 }
 
 std::optional<PhysicalDevice> pickPhysicalDevice() {
-  std::vector<PhysicalDevice> deviceList =
-      PhysicalDevice::getPhysicalDevices(*instance, surface);
+  std::vector<PhysicalDevice> deviceList = PhysicalDevice::getPhysicalDevices(*instance, surface);
 
   for (auto &device : deviceList) {
     if (isDeviceSuitable(device)) {
@@ -148,8 +150,7 @@ std::optional<PhysicalDevice> pickPhysicalDevice() {
 }
 
 void createLogicalDevice(PhysicalDevice &&physicalDevice) {
-  std::vector<QueueFamily> availableQueueFamilies =
-      physicalDevice.getQueueFamilies();
+  std::vector<QueueFamily> availableQueueFamilies = physicalDevice.getQueueFamilies();
 
   // Pick appropriate queues to use from the availableQueueFamilies
   // On Windows+Nvidia:
@@ -171,18 +172,13 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
     }
   }
 
-  if (graphicsQueueRequest.priority < 0.0f ||
-      presentationQueueRequest.priority < 0.0f) {
+  if (graphicsQueueRequest.priority < 0.0f || presentationQueueRequest.priority < 0.0f) {
     LOG_F("Failed to pick a graphics and presentation queue");
   }
 
-  QueueFamilyRequests requests = {graphicsQueueRequest,
-                                  presentationQueueRequest};
+  QueueFamilyRequests requests = {graphicsQueueRequest, presentationQueueRequest};
 
-  device = new LogicalDevice(*instance,
-                             std::move(physicalDevice),
-                             deviceExtensionsCpp,
-                             requests);
+  device = new LogicalDevice(*instance, std::move(physicalDevice), deviceExtensionsCpp, requests);
 
   if (graphicsQueueRequest.getQueue() == VK_NULL_HANDLE ||
       presentationQueueRequest.getQueue() == VK_NULL_HANDLE) {
@@ -191,9 +187,7 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
 }
 
 void createSwapChain(const LogicalDevice &device) {
-  swapchain = new Swapchain(device,
-                            surface,
-                            {graphicsQueueRequest, presentationQueueRequest});
+  swapchain = new Swapchain(device, surface, {graphicsQueueRequest, presentationQueueRequest});
 }
 
 void createSurface() { surface = windowSystem->createSurface(*instance); }
@@ -228,10 +222,8 @@ VkShaderModule createShaderModule(const std::vector<char> &shaderSpirv) {
   createInfo.pCode = reinterpret_cast<const uint32_t *>(shaderSpirv.data());
 
   VkShaderModule shaderModule;
-  if (vkCreateShaderModule(device->getVkDevice(),
-                           &createInfo,
-                           nullptr,
-                           &shaderModule) != VK_SUCCESS) {
+  if (vkCreateShaderModule(device->getVkDevice(), &createInfo, nullptr, &shaderModule) !=
+      VK_SUCCESS) {
     throw std::runtime_error("failed to create shader module!");
   }
 
@@ -239,13 +231,10 @@ VkShaderModule createShaderModule(const std::vector<char> &shaderSpirv) {
 }
 
 void createRenderPass() {
-  renderPass = new RenderPass(*device,
-                              swapchain->getExtent().width,
-                              swapchain->getExtent().height);
+  renderPass = new RenderPass(*device, swapchain->getExtent().width, swapchain->getExtent().height);
 
   // Our render pass is only going to need a single attachment
-  const Attachment &outputColorAttachment =
-      renderPass->createAttachment(swapchain->getFormat());
+  const Attachment &outputColorAttachment = renderPass->createAttachment(swapchain->getFormat());
 
   // Create a subpass within the render pass for rendering the player view
   // Currently this is the only subpass in the render pass
@@ -262,20 +251,17 @@ void createRenderPass() {
   // acquired from the swapchain
   LOG_D("Creating {} framebuffers", swapChainImageViews.size());
   for (const auto &swapchainImageView : swapChainImageViews) {
-    swapChainFramebuffers.emplace_back(renderPass->createFramebuffer(
-        {{outputColorAttachment, swapchainImageView}}));
+    swapChainFramebuffers.emplace_back(
+        renderPass->createFramebuffer({{outputColorAttachment, swapchainImageView}}));
   }
 }
 
 void createGraphicsPipeline() {
-  VertexShaderModule vertexShader(*device, "shaders/shader.vert.spv");
+  VertexShaderModule<Vertex> vertexShader(*device, "shaders/shader.vert.spv");
   ShaderModule fragmentShader(*device, "shaders/shader.frag.spv");
 
-  graphicsPipeline = new GraphicsPipeline(*device,
-                                          *swapchain,
-                                          *playerViewSubpass,
-                                          vertexShader,
-                                          fragmentShader);
+  graphicsPipeline =
+      new GraphicsPipeline(*device, *swapchain, *playerViewSubpass, vertexShader, fragmentShader);
 }
 
 // Command pools are memory regions from which we allocate a command buffer
@@ -299,10 +285,12 @@ void createCommandBuffers() {
 
     commandBuffers[i].bindPipeline(*graphicsPipeline);
 
-    commandBuffers[i].draw(3,  // Num Vertices to draw
-                           1,  // Instance count
-                           0,  // First vertex index offset
-                           0   // First instance offset
+    commandBuffers[i].bindVertexBuffers(*buffer);
+
+    commandBuffers[i].draw(buffer->getNumElements(),  // Num Vertices to draw
+                           1,                         // Instance count
+                           0,                         // First vertex index offset
+                           0                          // First instance offset
     );
 
     commandBuffers[i].endRenderPass();
@@ -315,7 +303,8 @@ void createSyncObjects() {
   // One fence per swapchain image
   // Initially, no one is using any swapchain images, so we initialize them to a
   // NULL handle
-  // imagesInFlight.resize(swapchain->getImages().size(), std::reference_wrapper::);
+  // imagesInFlight.resize(swapchain->getImages().size(),
+  // std::reference_wrapper::);
 
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
     inFlightFences.emplace_back(*device, true /* initially signaled*/);
@@ -365,22 +354,21 @@ void recreateSwapChain() {
 
 void drawFrame() {
   // Wait for this command buffer (and other things) to be free
-  inFlightFences[currentFrame].wait(); // Wait forever for the current frame to become free
+  inFlightFences[currentFrame].wait();  // Wait forever for the current frame to become free
 
   uint32_t imageIndex;
 
   // Signals the imageAvailableSemaphore when imageIndex image is ready to be
-  // written to 
+  // written to
   // Note: imageAvailableSemaphore may only exist in GPU-space
-  VkResult result =
-      vkAcquireNextImageKHR(device->getVkDevice(),
-                            *swapchain,
-                            UINT64_MAX,
-                            imageAvailableSemaphores[currentFrame],
-                            VK_NULL_HANDLE,
-                            &imageIndex);
+  VkResult result = vkAcquireNextImageKHR(device->getVkDevice(),
+                                          *swapchain,
+                                          UINT64_MAX,
+                                          imageAvailableSemaphores[currentFrame],
+                                          VK_NULL_HANDLE,
+                                          &imageIndex);
 
-  // Our swapchain doesn't match the presentation surface anymore: 
+  // Our swapchain doesn't match the presentation surface anymore:
   // recreate the swapchain and skip this frame
   if (result == VK_ERROR_OUT_OF_DATE_KHR) {
     recreateSwapChain();
@@ -399,8 +387,7 @@ void drawFrame() {
   // stages (ie: the vertex shader) are allowed to run before the semaphore is
   // signaled Note: indexes in this array correspond to semaphore indexes in the
   // waitSemaphores array
-  VkPipelineStageFlags waitStages[] = {
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+  VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
   submitInfo.waitSemaphoreCount = 1;  // ARRAY_SIZE(waitSemaphores) ?
   submitInfo.pWaitSemaphores = waitSemaphores;
@@ -444,8 +431,7 @@ void drawFrame() {
 
   result = vkQueuePresentKHR(presentationQueueRequest.getQueue(), &presentInfo);
 
-  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
-      framebufferResized) {
+  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
     framebufferResized = false;
     recreateSwapChain();
   } else if (result != VK_SUCCESS) {
@@ -454,6 +440,8 @@ void drawFrame() {
 
   currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
+
+void createVertexBuffer() { buffer = new Buffer<Vertex>(*device, vertices); }
 
 void initVulkan() {
   createInstance();
@@ -470,6 +458,8 @@ void initVulkan() {
   createLogicalDevice(std::move(physicalDevice.value()));
 
   createSwapChain(*device);
+
+  createVertexBuffer();
 
   createImageViews();
 
@@ -494,6 +484,8 @@ void mainLoop() {
 
 void cleanup() {
   cleanupSwapChain();
+
+  delete buffer;
 
   renderFinishedSemaphores.clear();
 
