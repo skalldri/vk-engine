@@ -6,9 +6,8 @@
 #include <engine/core/RenderPass.hpp>
 #include <engine/core/ShaderModule.hpp>
 #include <engine/core/Swapchain.hpp>
-#include <optional>
-
 #include <fmtlog/Log.hpp>
+#include <optional>
 
 template <class InputType>
 class GraphicsPipeline {

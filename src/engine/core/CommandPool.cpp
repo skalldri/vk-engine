@@ -2,8 +2,7 @@
 
 #include <fmtlog/Log.hpp>
 
-CommandPool::CommandPool(const LogicalDevice& device,
-                         const QueueFamilyRequest& queue)
+CommandPool::CommandPool(const LogicalDevice& device, const QueueFamilyRequest& queue)
     : device_(device),
       queue_(queue) {
   VkCommandPoolCreateInfo poolInfo{};
@@ -17,17 +16,12 @@ CommandPool::CommandPool(const LogicalDevice& device,
                        // command buffers to be rerecorded individually, without
                        // this flag they all have to be reset together
 
-  if (vkCreateCommandPool(device.getVkDevice(),
-                          &poolInfo,
-                          nullptr,
-                          &commandPool_) != VK_SUCCESS) {
+  if (vkCreateCommandPool(device.getVkDevice(), &poolInfo, nullptr, &commandPool_) != VK_SUCCESS) {
     LOG_F("failed to create command pool!");
   }
 }
 
-CommandPool::~CommandPool() {
-  vkDestroyCommandPool(device_.getVkDevice(), commandPool_, nullptr);
-}
+CommandPool::~CommandPool() { vkDestroyCommandPool(device_.getVkDevice(), commandPool_, nullptr); }
 
 CommandBuffer CommandPool::allocateCommandBuffer(VkCommandBufferLevel level) const {
   return std::move(CommandBuffer(device_, *this, level));
@@ -65,8 +59,7 @@ CommandBuffer::CommandBuffer(const LogicalDevice& device,
 
   allocInfo.commandBufferCount = 1;
 
-  if (vkAllocateCommandBuffers(device_, &allocInfo, &commandBuffer_) !=
-      VK_SUCCESS) {
+  if (vkAllocateCommandBuffers(device_, &allocInfo, &commandBuffer_) != VK_SUCCESS) {
     LOG_F("failed to allocate command buffer!");
   }
 }
@@ -78,16 +71,14 @@ void CommandBuffer::begin(VkCommandBufferUsageFlags flags) {
 
   VkCommandBufferBeginInfo beginInfo{};
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-  beginInfo.flags =
-      flags;  // VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer
-              // will be rerecorded right after executing it once.
-              // VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT: This is a
-              // secondary command buffer that will be entirely within a single
-              // render pass. VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT: The
-              // command buffer can be resubmitted while it is also already
-              // pending execution.
-  beginInfo.pInheritanceInfo =
-      nullptr;  // Optional, only used for "secondary" command buffers
+  beginInfo.flags = flags;  // VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer
+                            // will be rerecorded right after executing it once.
+                            // VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT: This is a
+                            // secondary command buffer that will be entirely within a single
+                            // render pass. VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT: The
+                            // command buffer can be resubmitted while it is also already
+                            // pending execution.
+  beginInfo.pInheritanceInfo = nullptr;  // Optional, only used for "secondary" command buffers
 
   if (vkBeginCommandBuffer(commandBuffer_, &beginInfo) != VK_SUCCESS) {
     LOG_F("failed to begin recording command buffer!");
@@ -102,14 +93,12 @@ void CommandBuffer::end() {
   }
 }
 
-void CommandBuffer::beginRenderPass(const RenderPass& renderPass,
-                                    const Framebuffer& framebuffer) {
+void CommandBuffer::beginRenderPass(const RenderPass& renderPass, const Framebuffer& framebuffer) {
   // We need a VkClearValue for every attachment that uses
   // VK_ATTACHMENT_LOAD_OP_CLEAR. For now, that's all our attachments, and we
   // will just make them all clear to black.
   std::vector<VkClearValue> clearColors;
-  clearColors.resize(renderPass.getAttachmentCount(),
-                     {{{0.0f, 0.0f, 0.0f, 1.0f}}});
+  clearColors.resize(renderPass.getAttachmentCount(), {{{0.0f, 0.0f, 0.0f, 1.0f}}});
 
   VkRenderPassBeginInfo renderPassInfo{};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -121,9 +110,7 @@ void CommandBuffer::beginRenderPass(const RenderPass& renderPass,
   renderPassInfo.pClearValues = clearColors.data();
 
   // Record this command to the command buffer
-  vkCmdBeginRenderPass(commandBuffer_,
-                       &renderPassInfo,
-                       VK_SUBPASS_CONTENTS_INLINE);
+  vkCmdBeginRenderPass(commandBuffer_, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
 
 void CommandBuffer::endRenderPass() { vkCmdEndRenderPass(commandBuffer_); }
@@ -138,4 +125,17 @@ void CommandBuffer::draw(uint32_t vertexCount,
             firstVertexIndex,   // First vertex index offset
             firstInstanceIndex  // First instance offset
   );
+}
+
+void CommandBuffer::drawIndexed(uint32_t vertexCount,
+                                uint32_t instanceCount,
+                                uint32_t firstIndexOffset,
+                                uint32_t indexValueOffset,
+                                uint32_t instanceOffset) {
+  vkCmdDrawIndexed(commandBuffer_,
+                   vertexCount,
+                   instanceCount,
+                   firstIndexOffset,
+                   indexValueOffset,
+                   instanceOffset);
 }

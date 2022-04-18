@@ -1,7 +1,8 @@
 #include "GraphicsPipeline.hpp"
-#include <fmtlog/Log.hpp>
 
 #include <vulkan/vulkan.h>
+
+#include <fmtlog/Log.hpp>
 
 /*
 template<class InputType>

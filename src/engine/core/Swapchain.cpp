@@ -6,8 +6,8 @@
 #include <set>
 
 VkSurfaceFormatKHR chooseSwapSurfaceFormat(
-    const std::vector<VkSurfaceFormatKHR> &availableFormats) {
-  for (const auto &availableFormat : availableFormats) {
+    const std::vector<VkSurfaceFormatKHR>& availableFormats) {
+  for (const auto& availableFormat : availableFormats) {
     if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
         availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
       return availableFormat;
@@ -18,10 +18,9 @@ VkSurfaceFormatKHR chooseSwapSurfaceFormat(
   return availableFormats[0];
 }
 
-VkPresentModeKHR chooseSwapPresentMode(
-    const std::vector<VkPresentModeKHR> &availablePresentModes) {
+VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
   // Pick MAILBOX present mode (effectively tripple buffering) if available
-  for (const auto &availablePresentMode : availablePresentModes) {
+  for (const auto& availablePresentMode : availablePresentModes) {
     if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
       return availablePresentMode;
     }
@@ -31,7 +30,7 @@ VkPresentModeKHR chooseSwapPresentMode(
                                     // Vulkan spec
 }
 
-VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities) {
+VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
   // If the Width / Height are UINT32_MAX, then our underlying Vulkan
   // implementation is going to pick the correct size extent to fill the window
   // automatically, and we can just return that value
@@ -39,8 +38,7 @@ VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities) {
     return capabilities.currentExtent;
   } else {
     LOG_F("Swapchain cannot determine correct extents");
-    return capabilities
-        .currentExtent;  // THIS IS WRONG, BUT ALLOWS COMPILATION FOR NOW
+    return capabilities.currentExtent;  // THIS IS WRONG, BUT ALLOWS COMPILATION FOR NOW
     /*
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
@@ -59,19 +57,17 @@ VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities) {
   }
 }
 
-Swapchain::Swapchain(const LogicalDevice &device,
-                     const VkSurfaceKHR &surface,
+Swapchain::Swapchain(const LogicalDevice& device,
+                     const VkSurfaceKHR& surface,
                      std::vector<QueueFamilyRequest> queues)
     : device_(device),
       surface_(surface) {
   SwapChainSupportDetails swapChainSupport =
       device_.getPhysicalDevice().querySwapChainSupport(surface_);
 
-  VkSurfaceFormatKHR surfaceFormat =
-      chooseSwapSurfaceFormat(swapChainSupport.formats);
+  VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
 
-  VkPresentModeKHR presentMode =
-      chooseSwapPresentMode(swapChainSupport.presentModes);
+  VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
 
   VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
 
@@ -84,7 +80,8 @@ Swapchain::Swapchain(const LogicalDevice &device,
   if (swapChainSupport.capabilities.maxImageCount > 0 &&
       imageCount > swapChainSupport.capabilities.maxImageCount) {
     LOG_W("GFX Driver does not support requested swapchain image count: {}", imageCount);
-    LOG_W("Resetting image count to driver maximum: {}", swapChainSupport.capabilities.maxImageCount);
+    LOG_W("Resetting image count to driver maximum: {}",
+          swapChainSupport.capabilities.maxImageCount);
     imageCount = swapChainSupport.capabilities.maxImageCount;
   }
 
@@ -109,7 +106,7 @@ Swapchain::Swapchain(const LogicalDevice &device,
 
   std::set<uint32_t> uniqueIndices;
   std::vector<uint32_t> queueFamilyIndices;
-  for (const auto &queue : queues) {
+  for (const auto& queue : queues) {
     // If we haven't seen this queue family index before, add it to
     // the vector that tracks queue family indices
     if (uniqueIndices.count(queue.family.index) == 0) {
@@ -128,25 +125,23 @@ Swapchain::Swapchain(const LogicalDevice &device,
   // If the application is going to operate on this swapchain from multiple
   // queue family indices, then we have to initialize it in a different mode
   if (uniqueIndices.size() > 1) {
-    createInfo.imageSharingMode =
-        VK_SHARING_MODE_CONCURRENT;  // Poor performance, easier to use
+    createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;  // Poor performance, easier to use
     createInfo.queueFamilyIndexCount = queueFamilyIndices.size();
     createInfo.pQueueFamilyIndices = queueFamilyIndices.data();
     LOG_W(
         "Using concurrent queue family sharing for swapchain, expect "
         "reduced performance");
     LOG_W("The following queue families are using the swapchain:");
-    for (const auto &index : queueFamilyIndices) {
+    for (const auto& index : queueFamilyIndices) {
       LOG_W("\tFamily {}", index);
     }
   } else {
     LOG_I(
         "Using exclusive image sharing mode for swapchain: expect optimal "
         "performance");
-    createInfo.imageSharingMode =
-        VK_SHARING_MODE_EXCLUSIVE;             // Best performance
-    createInfo.queueFamilyIndexCount = 0;      // Optional
-    createInfo.pQueueFamilyIndices = nullptr;  // Optional
+    createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;  // Best performance
+    createInfo.queueFamilyIndexCount = 0;                     // Optional
+    createInfo.pQueueFamilyIndices = nullptr;                 // Optional
   }
 
   // Specify that we don't want any transform on the image by setting the
@@ -169,8 +164,7 @@ Swapchain::Swapchain(const LogicalDevice &device,
   // gets resized. NULL for now.
   createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-  if (vkCreateSwapchainKHR(device_, &createInfo, nullptr, &swapchain_) !=
-      VK_SUCCESS) {
+  if (vkCreateSwapchainKHR(device_, &createInfo, nullptr, &swapchain_) != VK_SUCCESS) {
     LOG_F("failed to create swap chain!");
   }
 
@@ -183,15 +177,14 @@ Swapchain::Swapchain(const LogicalDevice &device,
 
   vkGetSwapchainImagesKHR(device_, swapchain_, &imageCount, vkImages.data());
 
-  for (auto &i : vkImages) {
-    images_.push_back(std::move(Image(
-        device_,
-        i,
-        1, /* num MIP levels, images from swapchains always have a single mip
-              level */
-        surfaceFormat.format,
-        extent,
-        true /* presentable, since this comes from a swapchain */)));
+  for (auto& i : vkImages) {
+    images_.push_back(std::move(Image(device_,
+                                      i,
+                                      1, /* num MIP levels, images from swapchains always have a
+                                            single mip level */
+                                      surfaceFormat.format,
+                                      extent,
+                                      true /* presentable, since this comes from a swapchain */)));
   }
 
   // Track the configuration of the swapchain

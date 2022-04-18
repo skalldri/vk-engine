@@ -29,12 +29,12 @@
 
 using namespace std;
 
-GlfwWindowSystem *windowSystem;
+GlfwWindowSystem* windowSystem;
 
-Instance *instance;
-Swapchain *swapchain;
-RenderPass *renderPass;
-Subpass *playerViewSubpass;
+Instance* instance;
+Swapchain* swapchain;
+RenderPass* renderPass;
+Subpass* playerViewSubpass;
 
 VkDebugUtilsMessengerEXT debugMessenger;
 
@@ -51,7 +51,7 @@ constexpr bool enableValidationLayers = false;
 // TODO: should this match the number of images in the Swapchain?
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
-LogicalDevice *device;
+LogicalDevice* device;
 
 QueueFamilyRequest graphicsQueueRequest;
 QueueFamilyRequest presentationQueueRequest;
@@ -59,16 +59,17 @@ QueueFamilyRequest transferQueueRequest;
 
 VkSurfaceKHR surface;
 
-GraphicsPipeline<Vertex> *graphicsPipeline;
-CommandPool *graphicsCommandPool;
-CommandPool *transferCommandPool;
+GraphicsPipeline<Vertex>* graphicsPipeline;
+CommandPool* graphicsCommandPool;
+CommandPool* transferCommandPool;
 
 std::vector<Semaphore> imageAvailableSemaphores;
 std::vector<Semaphore> renderFinishedSemaphores;
 
 std::vector<Fence> inFlightFences;
 
-// TODO: find a way to only expose graphics vkCmd and transfer vkCmds to command Buffers with a certain type of queue
+// TODO: find a way to only expose graphics vkCmd and transfer vkCmds to command Buffers with a
+// certain type of queue
 std::vector<CommandBuffer> graphicsCommandBuffers;
 
 std::vector<std::reference_wrapper<const Framebuffer>> swapChainFramebuffers;
@@ -91,25 +92,32 @@ size_t currentFrame = 0;
 
 bool framebufferResized = false;
 
-Buffer<Vertex> *buffer;
-const std::vector<Vertex> vertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-                                      {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-                                      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+Buffer<Vertex>* vertexBuffer;
+const std::vector<Vertex> vertices = {{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+                                      {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+                                      {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+                                      {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
+
+Buffer<uint16_t>* indexBuffer;
+const std::vector<uint16_t> indices = {0, 1, 2, 2, 3, 0};
 
 // TODO: avoid pointer usage
-template<class InputType>
-OnDeviceBuffer<InputType>* copyToDevice(const CommandPool& transferCommandPool, const std::vector<InputType>& buffer) {
-  // TODO: would be nice to indicate VK_COMMAND_POOL_CREATE_TRANSIENT_BIT when creating the transferCommandPool
+template <class InputType>
+OnDeviceBuffer<InputType>* copyToDevice(const CommandPool& transferCommandPool,
+                                        const std::vector<InputType>& buffer) {
+  // TODO: would be nice to indicate VK_COMMAND_POOL_CREATE_TRANSIENT_BIT when creating the
+  // transferCommandPool
 
   TransferBuffer<InputType> srcBuffer(transferCommandPool.getDevice(), buffer);
-  OnDeviceBuffer<InputType>* dstBuffer =  new OnDeviceBuffer<InputType>(transferCommandPool.getDevice(), buffer);
+  OnDeviceBuffer<InputType>* dstBuffer =
+      new OnDeviceBuffer<InputType>(transferCommandPool.getDevice(), buffer);
 
   CommandBuffer transferBuffer = transferCommandPool.allocateCommandBuffer();
 
   transferBuffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
   transferBuffer.copyBuffer(srcBuffer, *dstBuffer);
   transferBuffer.end();
-  
+
   VkCommandBuffer local = transferBuffer;
 
   VkSubmitInfo submitInfo{};
@@ -117,15 +125,15 @@ OnDeviceBuffer<InputType>* copyToDevice(const CommandPool& transferCommandPool, 
   submitInfo.commandBufferCount = 1;
   submitInfo.pCommandBuffers = &local;
 
-  // vkQueueSubmit will raise inFlightFences[currentFrame] when this set of
-  // commands has finished rendering
-  if (vkQueueSubmit(transferCommandPool.getQueue().getQueue(),
-                    1,
-                    &submitInfo,
-                    VK_NULL_HANDLE) != VK_SUCCESS) {
+  // TODO: could we use a vulkan semaphore to figure out when the transfer is done?
+  if (vkQueueSubmit(transferCommandPool.getQueue().getQueue(), 1, &submitInfo, VK_NULL_HANDLE) !=
+      VK_SUCCESS) {
     LOG_F("failed to submit draw command buffer!");
   }
 
+  // TODO: this blocks until the queue is empty / idle, which isn't great for performance.
+  // Could we implement this as some kind of async / await system that uses Vulkan semaphores or
+  // something similar?
   vkQueueWaitIdle(transferCommandPool.getQueue().getQueue());
 
   return dstBuffer;
@@ -142,11 +150,11 @@ void createInstance() {
   );
 }
 
-bool isDeviceSuitable(const PhysicalDevice &device) {
+bool isDeviceSuitable(const PhysicalDevice& device) {
   // Check if this device has an appropriate queue family
   bool hasGraphicsFamily = false;
   bool hasPresentFamily = false;
-  for (const auto &family : device.getQueueFamilies()) {
+  for (const auto& family : device.getQueueFamilies()) {
     if (family.graphics) {
       hasGraphicsFamily = true;
     }
@@ -174,7 +182,7 @@ bool isDeviceSuitable(const PhysicalDevice &device) {
 std::optional<PhysicalDevice> pickPhysicalDevice() {
   std::vector<PhysicalDevice> deviceList = PhysicalDevice::getPhysicalDevices(*instance, surface);
 
-  for (auto &device : deviceList) {
+  for (auto& device : deviceList) {
     if (isDeviceSuitable(device)) {
       LOG_I(
           "Physical Device '{}' is suitable for engine use, and has been "
@@ -188,7 +196,7 @@ std::optional<PhysicalDevice> pickPhysicalDevice() {
   return std::nullopt;
 }
 
-void createLogicalDevice(PhysicalDevice &&physicalDevice) {
+void createLogicalDevice(PhysicalDevice&& physicalDevice) {
   std::vector<QueueFamily> availableQueueFamilies = physicalDevice.getQueueFamilies();
 
   // Pick appropriate queues to use from the availableQueueFamilies
@@ -199,7 +207,7 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
   // On Other platforms:
   // - TBD
 
-  for (auto &family : availableQueueFamilies) {
+  for (auto& family : availableQueueFamilies) {
     // priority is initialized to -1.0f to indicate it's not been assigned a queue family index yet
     if (graphicsQueueRequest.priority < 0.0f && family.graphics) {
       graphicsQueueRequest.family = family;
@@ -219,7 +227,9 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
     }
   }
 
-  QueueFamilyRequests requests = {graphicsQueueRequest, presentationQueueRequest, transferQueueRequest};
+  QueueFamilyRequests requests = {graphicsQueueRequest,
+                                  presentationQueueRequest,
+                                  transferQueueRequest};
 
   for (const auto& r : requests) {
     if (r.get().priority < 0.0f) {
@@ -235,19 +245,19 @@ void createLogicalDevice(PhysicalDevice &&physicalDevice) {
   }
 }
 
-void createSwapChain(const LogicalDevice &device) {
+void createSwapChain(const LogicalDevice& device) {
   swapchain = new Swapchain(device, surface, {graphicsQueueRequest, presentationQueueRequest});
 }
 
 void createSurface() { surface = windowSystem->createSurface(*instance); }
 
 void createImageViews() {
-  for (auto &image : swapchain->getImages()) {
+  for (auto& image : swapchain->getImages()) {
     swapChainImageViews.emplace_back(image);
   }
 }
 
-static std::vector<char> readBinaryFile(const std::string &filename) {
+static std::vector<char> readBinaryFile(const std::string& filename) {
   std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
   if (!file.is_open()) {
@@ -264,11 +274,11 @@ static std::vector<char> readBinaryFile(const std::string &filename) {
   return contents;
 }
 
-VkShaderModule createShaderModule(const std::vector<char> &shaderSpirv) {
+VkShaderModule createShaderModule(const std::vector<char>& shaderSpirv) {
   VkShaderModuleCreateInfo createInfo{};
   createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   createInfo.codeSize = shaderSpirv.size();
-  createInfo.pCode = reinterpret_cast<const uint32_t *>(shaderSpirv.data());
+  createInfo.pCode = reinterpret_cast<const uint32_t*>(shaderSpirv.data());
 
   VkShaderModule shaderModule;
   if (vkCreateShaderModule(device->getVkDevice(), &createInfo, nullptr, &shaderModule) !=
@@ -283,7 +293,7 @@ void createRenderPass() {
   renderPass = new RenderPass(*device, swapchain->getExtent().width, swapchain->getExtent().height);
 
   // Our render pass is only going to need a single attachment
-  const Attachment &outputColorAttachment = renderPass->createAttachment(swapchain->getFormat());
+  const Attachment& outputColorAttachment = renderPass->createAttachment(swapchain->getFormat());
 
   // Create a subpass within the render pass for rendering the player view
   // Currently this is the only subpass in the render pass
@@ -299,7 +309,7 @@ void createRenderPass() {
   // Create framebuffers for this renderpass using each of the image views we
   // acquired from the swapchain
   LOG_D("Creating {} framebuffers", swapChainImageViews.size());
-  for (const auto &swapchainImageView : swapChainImageViews) {
+  for (const auto& swapchainImageView : swapChainImageViews) {
     swapChainFramebuffers.emplace_back(
         renderPass->createFramebuffer({{outputColorAttachment, swapchainImageView}}));
   }
@@ -335,12 +345,15 @@ void createCommandBuffers() {
 
     graphicsCommandBuffers[i].bindPipeline(*graphicsPipeline);
 
-    graphicsCommandBuffers[i].bindVertexBuffers(*buffer);
+    graphicsCommandBuffers[i].bindVertexBuffers(*vertexBuffer);
 
-    graphicsCommandBuffers[i].draw(buffer->getNumElements(),  // Num Vertices to draw
-                           1,                                 // Instance count
-                           0,                                 // First vertex index offset
-                           0                                  // First instance offset
+    graphicsCommandBuffers[i].bindIndexBuffer(*indexBuffer);
+
+    graphicsCommandBuffers[i].drawIndexed(indexBuffer->getNumElements(),  // Num Vertices to draw
+                                          1,                              // Instance count
+                                          0,                              // firstIndexOffset
+                                          0,                              // indexValueOffset
+                                          0                               // instance offset
     );
 
     graphicsCommandBuffers[i].endRenderPass();
@@ -491,9 +504,9 @@ void drawFrame() {
   currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void createVertexBuffer() { 
-  buffer = copyToDevice(*transferCommandPool, vertices);
-}
+void createVertexBuffer() { vertexBuffer = copyToDevice(*transferCommandPool, vertices); }
+
+void createIndexBuffer() { indexBuffer = copyToDevice(*transferCommandPool, indices); }
 
 void initVulkan() {
   createInstance();
@@ -523,6 +536,8 @@ void initVulkan() {
 
   createVertexBuffer();
 
+  createIndexBuffer();
+
   createCommandBuffers();
 }
 
@@ -538,7 +553,9 @@ void mainLoop() {
 void cleanup() {
   cleanupSwapChain();
 
-  delete buffer;
+  delete vertexBuffer;
+
+  delete indexBuffer;
 
   renderFinishedSemaphores.clear();
 
@@ -558,7 +575,7 @@ void cleanup() {
   delete windowSystem;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   CLI::App app{"Vulkan Engine"};
 
   std::string filename = "default";

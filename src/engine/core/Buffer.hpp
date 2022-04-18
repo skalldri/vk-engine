@@ -1,5 +1,6 @@
 #pragma once
 
+#include <engine/core/Vertex.hpp>
 #include <engine/core/Device.hpp>
 #include <fmtlog/Log.hpp>
 
@@ -47,6 +48,11 @@ class Buffer {
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, propertyFlags);
     // VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
+    // TODO: THIS IS NOT HOW WE'RE SUPPOSED TO DO THIS IN VULKAN!
+    // The maximum number of allocations can be very low (like, 4098!) because the GPU driver is
+    // having to keep track of the allocations. Instead, the app should request a big chunk of
+    // memory and apportion it to individual apps using the "offset" fields in other memory-related
+    // Vulkan calls
     if (vkAllocateMemory(device_, &allocInfo, nullptr, &bufferMemory_) != VK_SUCCESS) {
       LOG_F("failed to allocate vertex buffer memory!");
     }
@@ -94,12 +100,37 @@ class OnDeviceBuffer : public Buffer<InputType> {
   OnDeviceBuffer(const LogicalDevice& device,
                  const std::vector<InputType>& bufferContents,
                  const QueueFamilyRequests sharingQueues = {})
-      : Buffer<InputType>(
-            device,
-            bufferContents,
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            sharingQueues) {}
+      : Buffer<InputType>(device,
+                          bufferContents,
+                          VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                          sharingQueues) {}
+};
+
+template <>
+class OnDeviceBuffer<Vertex> : public Buffer<Vertex> {
+ public:
+  OnDeviceBuffer(const LogicalDevice& device,
+                 const std::vector<Vertex>& bufferContents,
+                 const QueueFamilyRequests sharingQueues = {})
+      : Buffer<Vertex>(device,
+                        bufferContents,
+                        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                        sharingQueues) {}
+};
+
+template <>
+class OnDeviceBuffer<uint16_t> : public Buffer<uint16_t> {
+ public:
+  OnDeviceBuffer(const LogicalDevice& device,
+                 const std::vector<uint16_t>& bufferContents,
+                 const QueueFamilyRequests sharingQueues = {})
+      : Buffer<uint16_t>(device,
+                        bufferContents,
+                        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                        sharingQueues) {}
 };
 
 // Buffer used to transfer data from host to device memory

@@ -89,8 +89,7 @@ class Instance {
   const Layers& getEnabledLayers();
 
  private:
-  void populateDebugMessengerCreateInfo(
-      VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+  void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 
   static VKAPI_ATTR VkBool32 VKAPI_CALL
   debugCallbackShim(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -98,10 +97,9 @@ class Instance {
                     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
                     void* pUserData);
 
-  VkBool32 debugCallback(
-      VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-      VkDebugUtilsMessageTypeFlagsEXT messageType,
-      const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData);
+  VkBool32 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                         VkDebugUtilsMessageTypeFlagsEXT messageType,
+                         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData);
 
  private:
   VkInstance instance_;

@@ -2,9 +2,8 @@
 #include <vulkan/vulkan.h>
 
 #include <ShaderModule.hpp>
-#include <fstream>
-
 #include <fmtlog/Log.hpp>
+#include <fstream>
 
 using namespace std;
 using namespace std::filesystem;
@@ -15,21 +14,19 @@ ShaderModule::ShaderModule(const LogicalDevice& device, const path& shaderFile) 
   shaderModule_ = createVkShaderModule(device_, shaderBinary_);
 }
 
-ShaderModule::ShaderModule(const LogicalDevice& device, const ShaderBinary& shaderContents) : device_(device) {
+ShaderModule::ShaderModule(const LogicalDevice& device, const ShaderBinary& shaderContents)
+    : device_(device) {
   shaderBinary_ = shaderContents;
   shaderModule_ = createVkShaderModule(device_, shaderBinary_);
 }
 
-ShaderModule::~ShaderModule() {
-  vkDestroyShaderModule(device_, shaderModule_, nullptr);
-}
+ShaderModule::~ShaderModule() { vkDestroyShaderModule(device_, shaderModule_, nullptr); }
 
 ShaderBinary ShaderModule::readBinaryFile(const path& shaderFile) {
   path absoluteShaderFile = absolute(shaderFile);
 
   if (!exists(absoluteShaderFile) || !is_regular_file(absoluteShaderFile)) {
-    LOG_E("Shader file '{}' does not exist",
-               absoluteShaderFile.generic_string());
+    LOG_E("Shader file '{}' does not exist", absoluteShaderFile.generic_string());
     return ShaderBinary();
   }
 
@@ -47,22 +44,22 @@ ShaderBinary ShaderModule::readBinaryFile(const path& shaderFile) {
   file.read(contents.data(), fileSize);
   file.close();
 
-  LOG_D("Read contents of shader file '{}', size = {}", absoluteShaderFile.generic_string(), fileSize);
+  LOG_D("Read contents of shader file '{}', size = {}",
+        absoluteShaderFile.generic_string(),
+        fileSize);
 
   return contents;
 }
 
-VkShaderModule ShaderModule::createVkShaderModule(
-    const VkDevice& device,
-    const ShaderBinary& shaderBinary) noexcept {
+VkShaderModule ShaderModule::createVkShaderModule(const VkDevice& device,
+                                                  const ShaderBinary& shaderBinary) noexcept {
   VkShaderModuleCreateInfo createInfo{};
   createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   createInfo.codeSize = shaderBinary.size();
   createInfo.pCode = reinterpret_cast<const uint32_t*>(shaderBinary.data());
-  
+
   VkShaderModule shaderModule;
-  if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) !=
-      VK_SUCCESS) {
+  if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
     LOG_E("failed to create shader module!");
     return VK_NULL_HANDLE;
   }
@@ -71,7 +68,8 @@ VkShaderModule ShaderModule::createVkShaderModule(
 }
 
 /*
-const VkPipelineVertexInputStateCreateInfo& VertexShaderModule::getVertexShaderBindingDescription() {
+const VkPipelineVertexInputStateCreateInfo& VertexShaderModule::getVertexShaderBindingDescription()
+{
   // Dummy vertex shader input descriptor that indicates we aren't going to
   // upload anything (since the vertices are compiled in already)
   vertexShaderInputDescription_.sType =

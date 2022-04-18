@@ -2,11 +2,10 @@
 
 #include <vulkan/vulkan.h>
 
+#include <engine/core/Buffer.hpp>
 #include <engine/core/Device.hpp>
 #include <engine/core/GraphicsPipeline.hpp>
 #include <engine/core/RenderPass.hpp>
-#include <engine/core/Buffer.hpp>
-
 #include <typeinfo>
 
 class CommandBuffer;
@@ -28,7 +27,8 @@ class CommandPool {
 
   const QueueFamilyRequest& getQueue() const { return queue_; }
 
-  CommandBuffer allocateCommandBuffer(VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) const;
+  CommandBuffer allocateCommandBuffer(
+      VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) const;
 
  private:
   const LogicalDevice& device_;
@@ -60,10 +60,24 @@ class CommandBuffer {
 
   template <class InputType>
   void bindVertexBuffers(const Buffer<InputType>& buffer) {
-    // TODO: figure out how to validate that the currently bound pipeline is compatible with this input
+    // TODO: figure out how to validate that the currently bound pipeline is compatible with this
+    // input
     VkBuffer vertexBuffers[] = {buffer};
     VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(commandBuffer_, 0 /* first binding */, 1 /* num buffers */, vertexBuffers, offsets);
+    vkCmdBindVertexBuffers(commandBuffer_,
+                           0 /* first binding */,
+                           1 /* num buffers */,
+                           vertexBuffers,
+                           offsets);
+  }
+
+  template <class InputType>
+  void bindIndexBuffer(const Buffer<InputType>& buffer);
+
+  // Template specialization for UINT16 index buffers
+  template <>
+  void bindIndexBuffer<uint16_t>(const Buffer<uint16_t>& buffer) {
+    vkCmdBindIndexBuffer(commandBuffer_, buffer, 0 /* offset */, VK_INDEX_TYPE_UINT16);
   }
 
   void draw(uint32_t vertexCount,
@@ -71,16 +85,21 @@ class CommandBuffer {
             uint32_t firstVertexIndex,
             uint32_t firstInstanceIndex);
 
-  template<class InputType>
-  void copyBuffer(const Buffer<InputType>& src, const Buffer<InputType>& dst) {
+  void drawIndexed(uint32_t vertexCount,
+                   uint32_t instanceCount,
+                   uint32_t firstIndexOffset,
+                   uint32_t indexValueOffset,
+                   uint32_t instanceOffset);
 
+  template <class InputType>
+  void copyBuffer(const Buffer<InputType>& src, const Buffer<InputType>& dst) {
     if (src.getBufferSize() != dst.getBufferSize()) {
       LOG_F("Src and dst buffer sizes don't match!");
     }
 
     VkBufferCopy copyRegion{};
-    copyRegion.srcOffset = 0; // Optional
-    copyRegion.dstOffset = 0; // Optional
+    copyRegion.srcOffset = 0;  // Optional
+    copyRegion.dstOffset = 0;  // Optional
     copyRegion.size = dst.getBufferSize();
 
     vkCmdCopyBuffer(commandBuffer_, src, dst, 1 /* num copy regions */, &copyRegion);

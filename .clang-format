@@ -15,4 +15,5 @@ PointerAlignment: Left
 SortIncludes: 'true'
 UseTab: Never
 ColumnLimit: 100
+DerivePointerAlignment: 'false'
 ...

@@ -3,9 +3,9 @@
 #include <vulkan/vulkan.h>
 
 #include <engine/core/Instance.hpp>
+#include <optional>
 #include <tuple>
 #include <vector>
-#include <optional>
 
 struct QueueFamily {
   bool graphics;
@@ -24,13 +24,13 @@ struct QueueFamily {
 // float: the queue priority (0 -> 1, where 0 is lowest priority and 1 is
 // highest priority)
 class QueueFamilyRequest {
- friend class LogicalDevice;
+  friend class LogicalDevice;
 
  public:
   QueueFamily family;
-  float priority = -1.0f; // Initialize with negative priority to indicate bad state
+  float priority = -1.0f;  // Initialize with negative priority to indicate bad state
 
-  const VkQueue& getQueue() const {return allocatedQueue; }
+  const VkQueue& getQueue() const { return allocatedQueue; }
 
   operator const VkQueue&() const { return allocatedQueue; }
 
@@ -71,7 +71,7 @@ static std::vector<uint32_t> getUniqueQueueFamilyIndices(const QueueFamilyReques
  *
  */
 class PhysicalDevice {
- friend class LogicalDevice;
+  friend class LogicalDevice;
 
  public:
   // No default constructor
@@ -88,7 +88,8 @@ class PhysicalDevice {
 
   std::vector<QueueFamily> getQueueFamilies() const;
 
-  static std::vector<PhysicalDevice> getPhysicalDevices(Instance& instance, std::optional<VkSurfaceKHR> surface);
+  static std::vector<PhysicalDevice> getPhysicalDevices(Instance& instance,
+                                                        std::optional<VkSurfaceKHR> surface);
 
   DeviceExtensions getDeviceExtensions() const;
 
@@ -101,7 +102,7 @@ class PhysicalDevice {
   VkPhysicalDeviceFeatures getFeatures() const;
 
   // TODO: REMOVE THIS, ONLY FOR INTEGRGATION WITH ORIGINAL ENGINE
-  VkPhysicalDevice getVkPhysicalDevice() const {return device_; }
+  VkPhysicalDevice getVkPhysicalDevice() const { return device_; }
 
   operator VkPhysicalDevice() const { return device_; }
 
@@ -120,7 +121,6 @@ class PhysicalDevice {
   std::vector<QueueFamily> queueFamilies_;
   std::optional<VkSurfaceKHR> surface_;
 };
-
 
 /**
  * @brief LogicalDevices represent a VkDevice. LogicalDevices must be "derived"
@@ -146,9 +146,9 @@ class LogicalDevice {
                 QueueFamilyRequests& requests);
 
   // TODO: REMOVE THIS, ONLY FOR INTEGRGATION WITH ORIGINAL ENGINE
-  VkDevice getVkDevice() const {return device_; }
+  VkDevice getVkDevice() const { return device_; }
 
-  const PhysicalDevice& getPhysicalDevice() const {return physicalDevice_; }
+  const PhysicalDevice& getPhysicalDevice() const { return physicalDevice_; }
 
   operator VkDevice() const { return device_; }
 
@@ -160,4 +160,3 @@ class LogicalDevice {
   std::vector<VkQueue> queues_;
   VkDevice device_ = nullptr;
 };
-

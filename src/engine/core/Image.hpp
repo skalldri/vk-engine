@@ -1,15 +1,16 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+
 #include <engine/core/Device.hpp>
 
 /**
  * @brief Simple wrapper enabling RAII around a VkImage
- * 
+ *
  */
 class Image {
- friend class Swapchain;
- friend class ImageView;
+  friend class Swapchain;
+  friend class ImageView;
 
  public:
   Image(Image& other) = delete;
@@ -30,13 +31,18 @@ class Image {
 
  protected:
   // Only for use when generating a VkImage from a Swapchain
-  Image(const LogicalDevice& device, VkImage image, uint32_t mipLevels, VkFormat format, VkExtent2D extent, bool presentable = false);
+  Image(const LogicalDevice& device,
+        VkImage image,
+        uint32_t mipLevels,
+        VkFormat format,
+        VkExtent2D extent,
+        bool presentable = false);
 
   VkDevice getAssociatedDevice() const { return device_; }
 
  private:
-  const LogicalDevice& device_; // The device that this image is bound to
-  bool presentable_ = false; // Only true for VkImages that are derived from a Swapchain
+  const LogicalDevice& device_;  // The device that this image is bound to
+  bool presentable_ = false;     // Only true for VkImages that are derived from a Swapchain
   VkImage image_;
   uint32_t mipLevels_;
   VkFormat format_;
@@ -45,17 +51,16 @@ class Image {
 
 /**
  * @brief Simple wrapper enabling RAII around a VkImageView
- * 
+ *
  */
 class ImageView {
- public: 
-
+ public:
   ImageView() = delete;
 
   ImageView(ImageView& other) = delete;
 
   ImageView(ImageView&& other);
-  
+
   ImageView(const Image& image);
 
   ~ImageView();
@@ -66,5 +71,5 @@ class ImageView {
 
  private:
   const Image& image_;
-  VkImageView imageView_; 
+  VkImageView imageView_;
 };

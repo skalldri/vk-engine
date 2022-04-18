@@ -6,8 +6,7 @@ Semaphore::Semaphore(const LogicalDevice& device) : device_(device) {
   VkSemaphoreCreateInfo semaphoreInfo{};
   semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-  if (vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &semaphore_) !=
-      VK_SUCCESS) {
+  if (vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &semaphore_) != VK_SUCCESS) {
     LOG_F("Failed to create semaphore");
   }
 }
@@ -28,8 +27,7 @@ Fence::Fence(const LogicalDevice& device, bool initiallySignalled) : device_(dev
   fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
   fenceInfo.flags = initiallySignalled ? VK_FENCE_CREATE_SIGNALED_BIT : 0;
 
-  if (vkCreateFence(device_, &fenceInfo, nullptr, &fence_) !=
-      VK_SUCCESS) {
+  if (vkCreateFence(device_, &fenceInfo, nullptr, &fence_) != VK_SUCCESS) {
     LOG_F("Failed to create fence");
   }
 }
@@ -45,9 +43,7 @@ Fence::~Fence() {
   }
 }
 
-void Fence::reset() {
-  vkResetFences(device_, 1, &fence_);
-}
+void Fence::reset() { vkResetFences(device_, 1, &fence_); }
 
 void Fence::wait(uint64_t timeout) {
   // Wait for this command buffer (and other things) to be free

@@ -30,9 +30,7 @@ Image::Image(const LogicalDevice& device,
 
 Image::~Image() {}
 
-ImageView::ImageView(ImageView&& other)
-    : image_(other.image_),
-      imageView_(other.imageView_) {
+ImageView::ImageView(ImageView&& other) : image_(other.image_), imageView_(other.imageView_) {
   other.imageView_ = nullptr;
 }
 
@@ -40,10 +38,8 @@ ImageView::ImageView(const Image& image) : image_(image) {
   VkImageViewCreateInfo createInfo{};
   createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
   createInfo.image = image_;
-  createInfo.viewType =
-      VK_IMAGE_VIEW_TYPE_2D;  // Treat the image as a 2D array of pixels
-  createInfo.format =
-      image_.getFormat();  // Match the format of the underlying image
+  createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;  // Treat the image as a 2D array of pixels
+  createInfo.format = image_.getFormat();       // Match the format of the underlying image
 
   // Allows us to swizzle one color channel into another, but for now
   // we just stick with the default
@@ -70,10 +66,8 @@ ImageView::ImageView(const Image& image) : image_(image) {
   createInfo.subresourceRange.baseArrayLayer = 0;
   createInfo.subresourceRange.layerCount = 1;
 
-  if (vkCreateImageView(image_.getAssociatedDevice(),
-                        &createInfo,
-                        nullptr,
-                        &imageView_) != VK_SUCCESS) {
+  if (vkCreateImageView(image_.getAssociatedDevice(), &createInfo, nullptr, &imageView_) !=
+      VK_SUCCESS) {
     LOG_F("failed to create image view!");
   }
 }

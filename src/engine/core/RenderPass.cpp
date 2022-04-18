@@ -3,9 +3,7 @@
 #include <engine/utils/vk.hpp>
 #include <fmtlog/Log.hpp>
 
-RenderPass::RenderPass(const LogicalDevice& device,
-                       uint32_t width,
-                       uint32_t height)
+RenderPass::RenderPass(const LogicalDevice& device, uint32_t width, uint32_t height)
     : device_(device),
       width_(width),
       height_(height) {}
@@ -23,8 +21,7 @@ const Attachment& RenderPass::createAttachment(VkFormat format) {
     LOG_F("cannot modify a render pass after it is finalized");
   }
 
-  attachments_.push_back(
-      Attachment(*this, {width_, height_}, format, attachments_.size()));
+  attachments_.push_back(Attachment(*this, {width_, height_}, format, attachments_.size()));
   return attachments_.back();
 }
 
@@ -62,8 +59,7 @@ void RenderPass::finalize() {
     vkAttachmentDescriptions[i].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     vkAttachmentDescriptions[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     vkAttachmentDescriptions[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    vkAttachmentDescriptions[i].stencilStoreOp =
-        VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    vkAttachmentDescriptions[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     vkAttachmentDescriptions[i].initialLayout =
         VK_IMAGE_LAYOUT_UNDEFINED;  // Initial layout of our VkImage is going to
                                     // be undefined, since this is the default
@@ -89,10 +85,8 @@ void RenderPass::finalize() {
 
     vkSubpasses[i].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
-    vkSubpasses[i].colorAttachmentCount =
-        subpass.getColorAttachmentReferences().size();
-    vkSubpasses[i].pColorAttachments =
-        subpass.getColorAttachmentReferences().data();
+    vkSubpasses[i].colorAttachmentCount = subpass.getColorAttachmentReferences().size();
+    vkSubpasses[i].pColorAttachments = subpass.getColorAttachmentReferences().data();
 
     // TODO: support other types of attachments
 
@@ -125,8 +119,7 @@ void RenderPass::finalize() {
   renderPassInfo.dependencyCount = vkSubpassDependencies.size();
   renderPassInfo.pDependencies = vkSubpassDependencies.data();
 
-  if (vkCreateRenderPass(device_, &renderPassInfo, nullptr, &renderPass_) !=
-      VK_SUCCESS) {
+  if (vkCreateRenderPass(device_, &renderPassInfo, nullptr, &renderPass_) != VK_SUCCESS) {
     LOG_F("failed to create render pass!");
   }
 
@@ -151,20 +144,17 @@ const Framebuffer& RenderPass::createFramebuffer(
   return framebuffers_.back();
 }
 
-Subpass::Subpass(
-    const RenderPass& parent,
-    uint32_t index,
-    std::vector<std::reference_wrapper<const Attachment>> colorAttachments)
+Subpass::Subpass(const RenderPass& parent,
+                 uint32_t index,
+                 std::vector<std::reference_wrapper<const Attachment>> colorAttachments)
     : colorAttachments_(colorAttachments),
       subpassIndex_(index),
       parent_(parent) {
   // TODO: support other kinds of attachments
   colorAttachmentReferences_.resize(colorAttachments_.size());
   for (size_t i = 0; i < colorAttachments_.size(); i++) {
-    colorAttachmentReferences_[i].attachment =
-        colorAttachments_[i].get().getIndex();
-    colorAttachmentReferences_[i].layout =
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachmentReferences_[i].attachment = colorAttachments_[i].get().getIndex();
+    colorAttachmentReferences_[i].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
   }
 }
 
@@ -198,10 +188,7 @@ void Subpass::addStartExternalDependency() {
   dependencies_.push_back(dependency);
 }
 
-Attachment::Attachment(const RenderPass& parent,
-                       VkExtent2D extent,
-                       VkFormat format,
-                       uint32_t index)
+Attachment::Attachment(const RenderPass& parent, VkExtent2D extent, VkFormat format, uint32_t index)
     : parent_(parent),
       extent_(extent),
       format_(format),
@@ -286,10 +273,8 @@ Framebuffer::Framebuffer(const RenderPass& parent,
   framebufferInfo.height = parent_.getExtent().height;
   framebufferInfo.layers = 1;  // TODO: ???
 
-  if (vkCreateFramebuffer(parent_.getDevice(),
-                          &framebufferInfo,
-                          nullptr,
-                          &framebuffer_) != VK_SUCCESS) {
+  if (vkCreateFramebuffer(parent_.getDevice(), &framebufferInfo, nullptr, &framebuffer_) !=
+      VK_SUCCESS) {
     LOG_F("failed to create framebuffer!");
   }
 }

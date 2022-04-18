@@ -30,7 +30,7 @@ class Fence {
   ~Fence();
 
   void reset();
-  
+
   void wait(uint64_t timeout = UINT64_MAX);
 
   operator const VkFence&() { return fence_; }
